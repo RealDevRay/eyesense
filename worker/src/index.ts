@@ -47,11 +47,12 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    // Health check endpoint (public, non-secret)
-    if (request.method === "GET" && url.pathname === "/health") {
+    // Health and root status endpoint (public, non-secret)
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/health")) {
       return jsonResponse({
         status: "ok",
         service: "eyesense-api",
+        description: "EyeSense Visual Assistance API Proxy",
         cloudEnabled: env.ENABLE_CLOUD_REQUESTS !== "false",
         version: "1.0.0",
       });
