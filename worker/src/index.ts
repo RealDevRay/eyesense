@@ -147,10 +147,7 @@ export default {
         if (err.message === "UPSTREAM_TIMEOUT") {
           return errorResponse("GATEWAY_TIMEOUT", "Upstream AI service timed out", 504);
         }
-        if (err.message === "UPSTREAM_AUTH_ERROR") {
-          return errorResponse("BAD_GATEWAY", "Upstream authorization error", 502);
-        }
-        return errorResponse("INTERNAL_ERROR", "An unexpected error occurred during processing", 500);
+        return errorResponse("INTERNAL_ERROR", `Processing error: ${err?.message || err}`, 500);
       }
     }
 

@@ -74,9 +74,9 @@ export async function processVisionRequest(
         throw new Error("RATE_LIMITED");
       }
       if (res.status === 401 || res.status === 403) {
-        throw new Error("UPSTREAM_AUTH_ERROR");
+        throw new Error(`UPSTREAM_AUTH_ERROR: ${res.status} - ${errText}`);
       }
-      throw new Error(`UPSTREAM_ERROR: ${res.status}`);
+      throw new Error(`UPSTREAM_ERROR: ${res.status} - ${errText}`);
     }
 
     const groqJson = (await res.json()) as any;

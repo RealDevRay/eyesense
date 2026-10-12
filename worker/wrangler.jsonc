@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "eyesense-api",
+  "account_id": "1788e8cb76240b4ef9958caaef7872fd",
   "main": "src/index.ts",
   "compatibility_date": "2024-10-01",
   "vars": {

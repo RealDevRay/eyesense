@@ -5,8 +5,11 @@ class AppConfig {
   // Default API Base URL (configurable via --dart-define=API_BASE_URL=...)
   static const String defaultApiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://api.eyesense.dev',
+    defaultValue: 'https://eyesense-api.klantrilogy.workers.dev',
   );
+
+  // Default Demo Access Token for Hosted Mode
+  static const String defaultDemoAccessToken = 'eyesense-demo-token-secret-pitch-2026';
 
   // Fixed Groq API Endpoint for BYOK direct mode
   static const String groqDirectApiUrl = 'https://api.groq.com/openai/v1/chat/completions';

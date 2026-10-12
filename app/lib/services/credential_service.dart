@@ -39,7 +39,9 @@ class CredentialService {
   }
 
   Future<String?> getDemoAccessToken() async {
-    return await _storage.read(key: _keyDemoAccessToken);
+    final token = await _storage.read(key: _keyDemoAccessToken);
+    if (token != null && token.isNotEmpty) return token;
+    return AppConfig.defaultDemoAccessToken;
   }
 
   Future<void> setDemoAccessToken(String token) async {
