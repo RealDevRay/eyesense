@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "eyesense-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-10-01",
+  "vars": {
+    "GROQ_VISION_MODEL": "qwen/qwen3.8-27b",
+    "UPSTREAM_TIMEOUT_MS": "12000",
+    "ENABLE_CLOUD_REQUESTS": "true"
+  }
+}
