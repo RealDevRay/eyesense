@@ -67,4 +67,19 @@ class CredentialService {
       return false;
     }
   }
+
+  /// Tests connectivity to the Cloudflare Worker via GET /health
+  Future<bool> testWorkerHealth(String baseUrl) async {
+    try {
+      final sanitized = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+      final healthUrl = '$sanitized/health';
+      final response = await _dio.get(healthUrl);
+      if (response.statusCode == 200 && response.data is Map) {
+        return response.data['status'] == 'ok';
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
 }

@@ -74,7 +74,10 @@ class AgentCoordinator extends ChangeNotifier {
     if (preferencesService.providerMode == ProviderMode.byok) {
       return GroqDirectVisionProvider(credentialService: credentialService);
     }
-    return HostedVisionProvider(credentialService: credentialService);
+    return HostedVisionProvider(
+      credentialService: credentialService,
+      baseUrl: preferencesService.apiBaseUrl,
+    );
   }
 
   void _setState(OperationState newState, {String? announcement}) {

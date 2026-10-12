@@ -1,3 +1,4 @@
+import 'package:eyesense/core/config/app_config.dart';
 import 'package:eyesense/models/app_operation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +14,7 @@ class PreferencesService extends ChangeNotifier {
   static const _keyAwarenessEnabled = 'awareness_enabled';
   static const _keyThemeMode = 'theme_mode';
   static const _keyCompletedOnboarding = 'completed_onboarding';
+  static const _keyApiBaseUrl = 'api_base_url';
 
   final SharedPreferences _prefs;
 
@@ -21,6 +23,12 @@ class PreferencesService extends ChangeNotifier {
   static Future<PreferencesService> create() async {
     final prefs = await SharedPreferences.getInstance();
     return PreferencesService(prefs);
+  }
+
+  String get apiBaseUrl => _prefs.getString(_keyApiBaseUrl) ?? AppConfig.defaultApiBaseUrl;
+  Future<void> setApiBaseUrl(String url) async {
+    await _prefs.setString(_keyApiBaseUrl, url.trim());
+    notifyListeners();
   }
 
   String get themeModeString => _prefs.getString(_keyThemeMode) ?? 'system';

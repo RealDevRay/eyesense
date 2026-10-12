@@ -22,14 +22,20 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
   late ProviderMode _selectedMode;
   final TextEditingController _apiKeyController = TextEditingController();
   final TextEditingController _demoTokenController = TextEditingController();
+  final TextEditingController _workerUrlController = TextEditingController();
   bool _isTestingKey = false;
   String? _testStatusMessage;
   bool? _testSuccess;
+
+  bool _isTestingWorker = false;
+  String? _workerTestStatusMessage;
+  bool? _workerTestSuccess;
 
   @override
   void initState() {
     super.initState();
     _selectedMode = widget.preferencesService.providerMode;
+    _workerUrlController.text = widget.preferencesService.apiBaseUrl;
     _loadCredentials();
   }
 
@@ -48,6 +54,7 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
   void dispose() {
     _apiKeyController.dispose();
     _demoTokenController.dispose();
+    _workerUrlController.dispose();
     super.dispose();
   }
 
@@ -79,8 +86,39 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
     }
   }
 
+  Future<void> _testWorker() async {
+    final url = _workerUrlController.text.trim();
+    if (url.isEmpty) {
+      setState(() {
+        _workerTestStatusMessage = 'Please enter a Worker URL first.';
+        _workerTestSuccess = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isTestingWorker = true;
+      _workerTestStatusMessage = 'Pinging Cloudflare Worker health endpoint...';
+      _workerTestSuccess = null;
+    });
+
+    final success = await widget.credentialService.testWorkerHealth(url);
+    if (mounted) {
+      setState(() {
+        _isTestingWorker = false;
+        _workerTestSuccess = success;
+        _workerTestStatusMessage = success
+            ? 'Success: Cloudflare Worker responded healthy.'
+            : 'Error: Unable to connect to Worker or invalid response.';
+      });
+    }
+  }
+
   Future<void> _saveSettings() async {
     await widget.preferencesService.setProviderMode(_selectedMode);
+    if (_workerUrlController.text.trim().isNotEmpty) {
+      await widget.preferencesService.setApiBaseUrl(_workerUrlController.text.trim());
+    }
     if (_selectedMode == ProviderMode.byok) {
       if (_apiKeyController.text.trim().isNotEmpty) {
         await widget.credentialService.setUserGroqApiKey(_apiKeyController.text.trim());
@@ -202,6 +240,54 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
                 ),
               ],
             ] else ...[
+              Text(
+                'Cloudflare Worker API URL',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _workerUrlController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Worker Base URL',
+                  hintText: 'https://eyesense-api.<subdomain>.workers.dev',
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.tealAccent,
+                      foregroundColor: AppTheme.backgroundNavy,
+                    ),
+                    icon: _isTestingWorker
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.backgroundNavy),
+                          )
+                        : const Icon(Icons.cloud_done_outlined, size: 20),
+                    label: const Text('Test Worker Connection'),
+                    onPressed: _isTestingWorker ? null : _testWorker,
+                  ),
+                ],
+              ),
+              if (_workerTestStatusMessage != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _workerTestStatusMessage!,
+                  style: TextStyle(
+                    color: _workerTestSuccess == true
+                        ? AppTheme.tealLight
+                        : _workerTestSuccess == false
+                            ? AppTheme.errorRed
+                            : AppTheme.textMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
               Text(
                 'Prototype Demo Token',
                 style: Theme.of(context).textTheme.titleMedium,
