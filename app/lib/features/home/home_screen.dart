@@ -39,20 +39,23 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceNavy,
-        title: const Text('Ask a Visual Question', style: TextStyle(color: AppTheme.textNearWhite)),
+        backgroundColor: Theme.of(ctx).colorScheme.surface,
+        title: Text(
+          'Ask a Visual Question',
+          style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface, fontWeight: FontWeight.bold),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Capture a new image and answer a question grounded in the image.',
-              style: TextStyle(color: AppTheme.textMuted),
+            Text(
+              'Takes a fresh camera image and answers your question.',
+              style: TextStyle(color: Theme.of(ctx).textTheme.bodyMedium?.color),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _questionController,
               autofocus: true,
-              style: const TextStyle(color: AppTheme.textNearWhite),
+              style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface),
               decoration: const InputDecoration(
                 labelText: 'Question (e.g. Where is the door?)',
                 border: OutlineInputBorder(),
@@ -63,12 +66,12 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: AppTheme.textMuted)),
+            child: const Text('Cancel'),
           ),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.tealAccent,
-              foregroundColor: AppTheme.backgroundNavy,
+              backgroundColor: Theme.of(ctx).colorScheme.primary,
+              foregroundColor: Theme.of(ctx).colorScheme.onPrimary,
             ),
             icon: const Icon(Icons.mic, size: 20),
             label: const Text('Voice Ask'),
@@ -79,8 +82,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.tealLight,
-              foregroundColor: AppTheme.backgroundNavy,
+              backgroundColor: Theme.of(ctx).colorScheme.secondary,
+              foregroundColor: Theme.of(ctx).colorScheme.onSecondary,
             ),
             onPressed: () {
               final q = _questionController.text.trim();
@@ -89,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 widget.coordinator.executeAskQuestion(q);
               }
             },
-            child: const Text('Ask Question'),
+            child: const Text('Submit Question'),
           ),
         ],
       ),
@@ -104,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final coordinator = widget.coordinator;
         final state = coordinator.state;
         final isBusy = state != OperationState.idle && state != OperationState.error;
+        final isSpeaking = coordinator.speechFeedbackCoordinator.isSpeaking;
 
         return Scaffold(
           appBar: AppBar(
@@ -112,118 +116,148 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const Text(
                   'EyeSense',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: 0.5),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 26, letterSpacing: 0.5),
                 ),
                 Text(
                   'Your world, described.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.tealLight),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
               ],
             ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.settings, size: 28),
-                tooltip: 'Settings',
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => SettingsScreen(
-                        preferencesService: coordinator.preferencesService,
-                        credentialService: coordinator.credentialService,
-                        logService: coordinator.logService,
+              // 8. Settings action in header
+              Semantics(
+                label: 'Settings',
+                hint: 'Change speech, language and connection preferences',
+                button: true,
+                child: IconButton(
+                  icon: const Icon(Icons.settings, size: 30),
+                  tooltip: 'Settings',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => SettingsScreen(
+                          preferencesService: coordinator.preferencesService,
+                          credentialService: coordinator.credentialService,
+                          logService: coordinator.logService,
+                          coordinator: coordinator,
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
               const SizedBox(width: 8),
             ],
           ),
           body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.defaultPadding,
+                vertical: 12,
+              ),
               child: Column(
                 children: [
-                  // Camera preview box (bounded, non-obscuring)
+                  // Optional preview (excluded from primary accessibility traversal)
                   if (coordinator.cameraService.isInitialized)
-                    Container(
-                      height: 140,
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppTheme.surfaceVariant, width: 2),
+                    ExcludeSemantics(
+                      child: Container(
+                        height: 140,
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Theme.of(context).colorScheme.surface, width: 2),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: CameraPreview(coordinator.cameraService.controller!),
                       ),
-                      clipBehavior: Clip.antiAlias,
-                      child: CameraPreview(coordinator.cameraService.controller!),
                     ),
 
-                  // Status bar
+                  // 1. Heading and Brief Status
                   OperationStatusWidget(
                     state: state,
                     errorMessage: coordinator.errorMessage,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppTheme.elementSpacing),
 
-                  // Response and playback panel
-                  if (coordinator.lastResultText != null)
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: ResponsePanelWidget(
-                          resultText: coordinator.lastResultText,
-                          sceneResult: coordinator.lastSceneResult,
-                          onRepeat: coordinator.repeatLast,
-                          onStop: coordinator.stop,
-                          isSpeaking: coordinator.ttsService.isSpeaking,
-                        ),
-                      ),
-                    )
-                  else
-                    const Spacer(),
-
-                  const SizedBox(height: 12),
-
-                  // Stop action prominent during operation or speech
-                  if (isBusy || coordinator.ttsService.isSpeaking)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: AccessibleActionButton(
-                        label: 'Stop',
-                        icon: Icons.stop_circle_outlined,
-                        isDestructive: true,
-                        semanticHint: 'Immediately stops speech and cancels operation',
-                        onPressed: coordinator.stop,
-                      ),
+                  // 7. Persistent Operation Control Area (Stop button when active or speaking)
+                  if (isBusy || isSpeaking) ...[
+                    AccessibleActionButton(
+                      label: 'Stop current task',
+                      icon: Icons.stop_circle_outlined,
+                      isDestructive: true,
+                      semanticHint: 'Stop listening, processing or playback',
+                      onPressed: coordinator.stop,
                     ),
+                    const SizedBox(height: AppTheme.elementSpacing),
+                  ],
 
-                  // Primary Core Actions
+                  // 2. Start voice command (FIRST primary action in reading order)
                   AccessibleActionButton(
-                    label: 'Describe',
+                    label: 'Start voice command',
+                    icon: Icons.mic,
+                    isLoading: state == OperationState.listening,
+                    semanticHint: 'Start listening for a short request',
+                    onPressed: isBusy ? null : coordinator.executeVoiceCommand,
+                  ),
+                  const SizedBox(height: AppTheme.elementSpacing),
+
+                  // 3. Describe scene
+                  AccessibleActionButton(
+                    label: 'Describe scene',
                     icon: Icons.visibility_outlined,
+                    isSecondary: true,
                     isLoading: state == OperationState.capturing || state == OperationState.processingCloud,
-                    semanticHint: 'Takes a picture and describes the indoor scene',
+                    semanticHint: 'Take a picture and describe visible information',
                     onPressed: isBusy ? null : coordinator.executeDescribe,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppTheme.elementSpacing),
 
+                  // 4. Read text
                   AccessibleActionButton(
-                    label: 'Read Text',
+                    label: 'Read text',
                     icon: Icons.text_snippet_outlined,
                     isSecondary: true,
                     isLoading: state == OperationState.processingLocal,
-                    semanticHint: 'Recognizes on-device visible text and reads it aloud',
+                    semanticHint: 'Take a picture and read recognised words',
                     onPressed: isBusy ? null : coordinator.executeReadText,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppTheme.elementSpacing),
 
+                  // 5. Ask a question
                   AccessibleActionButton(
-                    label: 'Ask',
+                    label: 'Ask a question',
                     icon: Icons.chat_bubble_outline,
                     isSecondary: true,
-                    semanticHint: 'Ask a voice or typed question about what you point at',
+                    semanticHint: 'Ask about a fresh camera image',
                     onPressed: isBusy ? null : _showAskDialog,
                   ),
+                  const SizedBox(height: AppTheme.elementSpacing),
+
+                  // 6. Repeat last response
+                  AccessibleActionButton(
+                    label: 'Repeat last response',
+                    icon: Icons.replay,
+                    isSecondary: true,
+                    semanticHint: 'Hear previous information again',
+                    onPressed: coordinator.lastResultText != null ? coordinator.repeatLast : null,
+                  ),
+                  const SizedBox(height: AppTheme.elementSpacing),
+
+                  // Response details panel
+                  if (coordinator.lastResultText != null)
+                    ResponsePanelWidget(
+                      resultText: coordinator.lastResultText,
+                      sceneResult: coordinator.lastSceneResult,
+                      onRepeat: coordinator.repeatLast,
+                      onStop: coordinator.stop,
+                      isSpeaking: isSpeaking,
+                    ),
                 ],
               ),
             ),

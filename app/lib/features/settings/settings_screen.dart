@@ -1,5 +1,6 @@
-import 'package:eyesense/core/theme/app_theme.dart';
+import 'package:eyesense/agents/agent_coordinator.dart';
 import 'package:eyesense/features/diagnostics/diagnostics_screen.dart';
+import 'package:eyesense/features/onboarding/onboarding_screen.dart';
 import 'package:eyesense/features/settings/ai_connection_screen.dart';
 import 'package:eyesense/services/credential_service.dart';
 import 'package:eyesense/services/diagnostic_log_service.dart';
@@ -10,12 +11,14 @@ class SettingsScreen extends StatefulWidget {
   final PreferencesService preferencesService;
   final CredentialService credentialService;
   final DiagnosticLogService logService;
+  final AgentCoordinator coordinator;
 
   const SettingsScreen({
     super.key,
     required this.preferencesService,
     required this.credentialService,
     required this.logService,
+    required this.coordinator,
   });
 
   @override
@@ -28,6 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _haptics;
   late bool _autoRead;
   late bool _cloudConsent;
+  late String _themeMode;
 
   @override
   void initState() {
@@ -37,6 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _haptics = widget.preferencesService.hapticsEnabled;
     _autoRead = widget.preferencesService.autoRead;
     _cloudConsent = widget.preferencesService.cloudConsentGranted;
+    _themeMode = widget.preferencesService.themeModeString;
   }
 
   @override
@@ -48,11 +53,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         children: [
+          Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Theme Mode', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            subtitle: const Text('System default, high-contrast dark, or light'),
+            trailing: DropdownButton<String>(
+              dropdownColor: Theme.of(context).colorScheme.surface,
+              value: _themeMode,
+              items: const [
+                DropdownMenuItem(value: 'system', child: Text('System')),
+                DropdownMenuItem(value: 'dark', child: Text('Dark Navy')),
+                DropdownMenuItem(value: 'light', child: Text('Light Teal')),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() => _themeMode = val);
+                  widget.preferencesService.setThemeModeString(val);
+                }
+              },
+            ),
+          ),
+          const Divider(height: 32),
+
           Text('Speech & Audio', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           Text('Speech Rate: ${_speechRate.toStringAsFixed(1)}x', style: const TextStyle(fontSize: 16)),
           Slider(
-            activeColor: AppTheme.tealAccent,
             value: _speechRate,
             min: 0.5,
             max: 2.0,
@@ -68,7 +96,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: const Text('Language', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             subtitle: const Text('Spoken language and response translations'),
             trailing: DropdownButton<String>(
-              dropdownColor: AppTheme.surfaceNavy,
+              dropdownColor: Theme.of(context).colorScheme.surface,
               value: _language,
               items: const [
                 DropdownMenuItem(value: 'en', child: Text('English (Default)')),
@@ -83,7 +111,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           SwitchListTile(
-            activeColor: AppTheme.tealAccent,
             contentPadding: EdgeInsets.zero,
             title: const Text('Automatic Spoken Reading', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             subtitle: const Text('Automatically speak new visual results aloud via TTS'),
@@ -94,7 +121,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           SwitchListTile(
-            activeColor: AppTheme.tealAccent,
             contentPadding: EdgeInsets.zero,
             title: const Text('Haptic Vibration Feedback', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             subtitle: const Text('Vibrate phone on confirmation and potential concerns'),
@@ -105,10 +131,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           const Divider(height: 36),
+
           Text('Privacy & Cloud Processing', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           SwitchListTile(
-            activeColor: AppTheme.tealAccent,
             contentPadding: EdgeInsets.zero,
             title: const Text('Cloud Processing Consent', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             subtitle: const Text('Allow sending single still images or text to configured AI services'),
@@ -119,9 +145,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           const Divider(height: 36),
+
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.cloud_outlined, color: AppTheme.tealAccent, size: 28),
+            leading: Icon(Icons.cloud_outlined, color: Theme.of(context).colorScheme.primary, size: 28),
             title: const Text('AI Connection', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             subtitle: const Text('Configure EyeSense service or Bring Your Own Groq Key'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 18),
@@ -139,7 +166,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 12),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.analytics_outlined, color: AppTheme.tealAccent, size: 28),
+            leading: Icon(Icons.analytics_outlined, color: Theme.of(context).colorScheme.primary, size: 28),
             title: const Text('Diagnostics', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             subtitle: const Text('Manage technical event logging, view file size, and export'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 18),
@@ -149,6 +176,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   builder: (_) => DiagnosticsScreen(
                     preferencesService: widget.preferencesService,
                     logService: widget.logService,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.help_outline, color: Theme.of(context).colorScheme.primary, size: 28),
+            title: const Text('Tutorial & Practice', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            subtitle: const Text('Replay the introductory onboarding walkthrough'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 18),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (ctx) => OnboardingScreen(
+                    coordinator: widget.coordinator,
+                    onFinish: () => Navigator.of(ctx).pop(),
                   ),
                 ),
               );

@@ -15,6 +15,7 @@ import 'package:eyesense/services/ocr_service.dart';
 import 'package:eyesense/services/preferences_service.dart';
 import 'package:eyesense/services/providers/groq_direct_provider.dart';
 import 'package:eyesense/services/providers/hosted_provider.dart';
+import 'package:eyesense/services/speech_feedback_coordinator.dart';
 import 'package:eyesense/services/speech_service.dart';
 import 'package:eyesense/services/tts_service.dart';
 import 'package:eyesense/services/vision_api_service.dart';
@@ -30,6 +31,7 @@ class AgentCoordinator extends ChangeNotifier {
   final PreferencesService preferencesService;
   final CredentialService credentialService;
   final DiagnosticLogService logService;
+  late final SpeechFeedbackCoordinator speechFeedbackCoordinator;
 
   late final SceneAgent sceneAgent;
   late final ReadingAgent readingAgent;
@@ -58,6 +60,10 @@ class AgentCoordinator extends ChangeNotifier {
     required this.credentialService,
     required this.logService,
   }) {
+    speechFeedbackCoordinator = SpeechFeedbackCoordinator(
+      ttsService: ttsService,
+      hapticService: hapticService,
+    );
     final visionApi = _createVisionApi();
     sceneAgent = SceneAgent(visionApi: visionApi, logService: logService);
     readingAgent = ReadingAgent(prefs: preferencesService, logService: logService);
@@ -248,6 +254,39 @@ class AgentCoordinator extends ChangeNotifier {
         onResult: (words, isFinal) {
           if (isFinal && words.trim().isNotEmpty && gen == _currentGeneration) {
             executeAskQuestion(words);
+          }
+        },
+      );
+    } catch (e) {
+      _handleError(e);
+    }
+  }
+
+  /// Top-level voice command: routes simple commands locally ("describe", "read", "repeat", "stop"),
+  /// or visual questions through the Scene Agent.
+  Future<void> executeVoiceCommand() async {
+    final gen = ++_currentGeneration;
+    await speechFeedbackCoordinator.stopAll();
+    await speechFeedbackCoordinator.playReadinessCue();
+    _setState(OperationState.listening, announcement: 'Listening for voice command');
+
+    try {
+      await speechService.listen(
+        localeId: preferencesService.language == 'sw' ? 'sw-KE' : 'en-US',
+        onResult: (words, isFinal) async {
+          if (isFinal && words.trim().isNotEmpty && gen == _currentGeneration) {
+            final clean = words.toLowerCase().trim();
+            if (clean.contains('stop') || clean.contains('acha')) {
+              stop();
+            } else if (clean.contains('repeat') || clean.contains('rudia')) {
+              repeatLast();
+            } else if (clean.contains('describe') || clean.contains('tazama') || clean.contains('eleza')) {
+              executeDescribe();
+            } else if (clean.contains('read') || clean.contains('soma') || clean.contains('text')) {
+              executeReadText();
+            } else {
+              executeAskQuestion(words);
+            }
           }
         },
       );

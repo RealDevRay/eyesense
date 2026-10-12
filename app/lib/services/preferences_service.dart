@@ -1,7 +1,8 @@
 import 'package:eyesense/models/app_operation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class PreferencesService {
+class PreferencesService extends ChangeNotifier {
   static const _keySpeechRate = 'speech_rate';
   static const _keyLanguage = 'app_language';
   static const _keyHapticsEnabled = 'haptics_enabled';
@@ -10,6 +11,8 @@ class PreferencesService {
   static const _keyCloudConsent = 'cloud_consent_granted';
   static const _keyProviderMode = 'provider_mode';
   static const _keyAwarenessEnabled = 'awareness_enabled';
+  static const _keyThemeMode = 'theme_mode';
+  static const _keyCompletedOnboarding = 'completed_onboarding';
 
   final SharedPreferences _prefs;
 
@@ -20,25 +23,53 @@ class PreferencesService {
     return PreferencesService(prefs);
   }
 
+  String get themeModeString => _prefs.getString(_keyThemeMode) ?? 'system';
+  Future<void> setThemeModeString(String mode) async {
+    await _prefs.setString(_keyThemeMode, mode);
+    notifyListeners();
+  }
+
+  bool get hasCompletedOnboarding => _prefs.getBool(_keyCompletedOnboarding) ?? false;
+  Future<void> setCompletedOnboarding(bool val) async {
+    await _prefs.setBool(_keyCompletedOnboarding, val);
+    notifyListeners();
+  }
+
   double get speechRate => _prefs.getDouble(_keySpeechRate) ?? 1.0;
-  Future<void> setSpeechRate(double rate) => _prefs.setDouble(_keySpeechRate, rate);
+  Future<void> setSpeechRate(double rate) async {
+    await _prefs.setDouble(_keySpeechRate, rate);
+    notifyListeners();
+  }
 
   String get language => _prefs.getString(_keyLanguage) ?? 'en';
-  Future<void> setLanguage(String lang) => _prefs.setString(_keyLanguage, lang);
+  Future<void> setLanguage(String lang) async {
+    await _prefs.setString(_keyLanguage, lang);
+    notifyListeners();
+  }
 
   bool get hapticsEnabled => _prefs.getBool(_keyHapticsEnabled) ?? true;
-  Future<void> setHapticsEnabled(bool val) => _prefs.setBool(_keyHapticsEnabled, val);
+  Future<void> setHapticsEnabled(bool val) async {
+    await _prefs.setBool(_keyHapticsEnabled, val);
+    notifyListeners();
+  }
 
   bool get autoRead => _prefs.getBool(_keyAutoRead) ?? true;
-  Future<void> setAutoRead(bool val) => _prefs.setBool(_keyAutoRead, val);
+  Future<void> setAutoRead(bool val) async {
+    await _prefs.setBool(_keyAutoRead, val);
+    notifyListeners();
+  }
 
   bool get diagnosticLoggingEnabled => _prefs.getBool(_keyDiagnosticLogging) ?? false;
-  Future<void> setDiagnosticLoggingEnabled(bool val) =>
-      _prefs.setBool(_keyDiagnosticLogging, val);
+  Future<void> setDiagnosticLoggingEnabled(bool val) async {
+    await _prefs.setBool(_keyDiagnosticLogging, val);
+    notifyListeners();
+  }
 
   bool get cloudConsentGranted => _prefs.getBool(_keyCloudConsent) ?? false;
-  Future<void> setCloudConsentGranted(bool val) =>
-      _prefs.setBool(_keyCloudConsent, val);
+  Future<void> setCloudConsentGranted(bool val) async {
+    await _prefs.setBool(_keyCloudConsent, val);
+    notifyListeners();
+  }
 
   ProviderMode get providerMode {
     final modeStr = _prefs.getString(_keyProviderMode);
@@ -46,10 +77,14 @@ class PreferencesService {
     return ProviderMode.hosted;
   }
 
-  Future<void> setProviderMode(ProviderMode mode) =>
-      _prefs.setString(_keyProviderMode, mode == ProviderMode.byok ? 'byok' : 'hosted');
+  Future<void> setProviderMode(ProviderMode mode) async {
+    await _prefs.setString(_keyProviderMode, mode == ProviderMode.byok ? 'byok' : 'hosted');
+    notifyListeners();
+  }
 
   bool get awarenessEnabled => _prefs.getBool(_keyAwarenessEnabled) ?? false;
-  Future<void> setAwarenessEnabled(bool val) =>
-      _prefs.setBool(_keyAwarenessEnabled, val);
+  Future<void> setAwarenessEnabled(bool val) async {
+    await _prefs.setBool(_keyAwarenessEnabled, val);
+    notifyListeners();
+  }
 }

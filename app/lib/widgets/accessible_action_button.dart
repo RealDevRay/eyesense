@@ -23,15 +23,23 @@ class AccessibleActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = isDestructive
-        ? AppTheme.errorRed
-        : isSecondary
-            ? AppTheme.surfaceVariant
-            : AppTheme.tealAccent;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
-    final foregroundColor = isDestructive || !isSecondary
-        ? AppTheme.backgroundNavy
-        : AppTheme.textNearWhite;
+    final Color backgroundColor;
+    final Color foregroundColor;
+
+    if (isDestructive) {
+      backgroundColor = colorScheme.error;
+      foregroundColor = isDark ? AppTheme.darkBackground : AppTheme.lightBackground;
+    } else if (isSecondary) {
+      backgroundColor = isDark ? AppTheme.darkSurface : AppTheme.lightSurface;
+      foregroundColor = isDark ? AppTheme.darkMainText : AppTheme.lightMainText;
+    } else {
+      backgroundColor = colorScheme.primary;
+      foregroundColor = colorScheme.onPrimary;
+    }
 
     return Semantics(
       button: true,
@@ -40,21 +48,27 @@ class AccessibleActionButton extends StatelessWidget {
       hint: semanticHint,
       child: SizedBox(
         width: double.infinity,
-        height: AppTheme.primaryButtonHeight,
+        height: AppTheme.primaryButtonHeight, // 72 logical pixels minimum height
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: backgroundColor,
             foregroundColor: foregroundColor,
-            elevation: 3,
+            elevation: isSecondary ? 1 : 3,
+            side: isSecondary
+                ? BorderSide(
+                    color: isDark ? AppTheme.darkSecondaryText.withOpacity(0.3) : AppTheme.lightSecondaryText.withOpacity(0.3),
+                    width: 2,
+                  )
+                : BorderSide.none,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(18),
             ),
           ),
           onPressed: isLoading ? null : onPressed,
           child: isLoading
               ? SizedBox(
-                  width: 28,
-                  height: 28,
+                  width: 30,
+                  height: 30,
                   child: CircularProgressIndicator(
                     strokeWidth: 3,
                     color: foregroundColor,
@@ -63,14 +77,18 @@ class AccessibleActionButton extends StatelessWidget {
               : Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, size: 28, color: foregroundColor),
-                    const SizedBox(width: 14),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: foregroundColor,
+                    Icon(icon, size: 30, color: foregroundColor),
+                    const SizedBox(width: 16),
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: foregroundColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
