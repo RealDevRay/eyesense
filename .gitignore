@@ -35,6 +35,7 @@ app/android/app/build/
 app/android/.idea/
 *.keystore
 *.jks
+*.apk
 
 # Operating System & IDEs
 .DS_Store
