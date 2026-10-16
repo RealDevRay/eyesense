@@ -11,7 +11,7 @@ class AppConfig {
   // Default Demo Access Token for Hosted Mode (configurable via --dart-define=HOSTED_ACCESS_TOKEN=...)
   static const String defaultDemoAccessToken = String.fromEnvironment(
     'HOSTED_ACCESS_TOKEN',
-    defaultValue: 'eyesense-pilot-token-rotated-2026',
+    defaultValue: 'eyesense-demo-token-secret-pitch-2026',
   );
 
   // Fixed Groq API Endpoint for BYOK direct mode
