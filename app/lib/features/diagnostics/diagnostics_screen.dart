@@ -73,70 +73,111 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Diagnostics'),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppTheme.defaultPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SwitchListTile(
-              activeColor: AppTheme.tealAccent,
+              activeColor: colorScheme.primary,
               contentPadding: EdgeInsets.zero,
-              title: const Text('Enable Diagnostic Logging', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              title: Text('Enable Diagnostic Logging', style: theme.textTheme.titleMedium),
               subtitle: const Text('Records technical event metadata locally to assist debugging. Disabled by default.'),
               value: _loggingEnabled,
               onChanged: _toggleLogging,
             ),
             const Divider(height: 32),
-            Text(
-              'Privacy Protection Notice',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.tealLight),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Diagnostic files contain strictly technical event metrics (operation durations, error codes, and token counts). Camera images, recognized text, voice questions, and credentials are NEVER written to logs.',
-              style: TextStyle(height: 1.4),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF132240) : colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: colorScheme.primary.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.shield_outlined, color: colorScheme.primary, size: 22),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Privacy Protection Notice',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Diagnostic files contain strictly technical event metrics (operation durations, error codes, and token counts). Camera images, recognized text, voice questions, and credentials are NEVER written to logs.',
+                    style: theme.textTheme.bodySmall?.copyWith(height: 1.45),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Retained Log Size:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Text('Retained Log Size:', style: theme.textTheme.titleSmall),
                 _isLoading
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text(_formatBytes(_totalLogBytes), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: colorScheme.primary,
+                        ),
+                      )
+                    : Text(
+                        _formatBytes(_totalLogBytes),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ],
             ),
             const SizedBox(height: 28),
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.tealAccent,
-                      foregroundColor: AppTheme.backgroundNavy,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    icon: const Icon(Icons.share, size: 20),
-                    label: const Text('Export Logs', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    onPressed: _totalLogBytes > 0 ? _exportLogs : null,
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                    minimumSize: const Size(140, AppTheme.minTouchTarget),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
+                  icon: const Icon(Icons.share, size: 20),
+                  label: const Text('Export Logs', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  onPressed: _totalLogBytes > 0 ? _exportLogs : null,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.errorRed,
-                      side: const BorderSide(color: AppTheme.errorRed),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    label: const Text('Clear Logs', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    onPressed: _totalLogBytes > 0 ? _clearLogs : null,
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colorScheme.error,
+                    side: BorderSide(color: colorScheme.error),
+                    minimumSize: const Size(140, AppTheme.minTouchTarget),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  label: const Text('Clear Logs', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  onPressed: _totalLogBytes > 0 ? _clearLogs : null,
                 ),
               ],
             ),

@@ -52,6 +52,49 @@ class AppTheme {
         onSurface: darkMainText,
         error: darkError,
         onError: darkBackground,
+        outline: Color(0xFF334B6E),
+      ),
+      appBarTheme: const AppBarTheme(
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: darkBackground,
+        foregroundColor: darkMainText,
+        centerTitle: false,
+      ),
+      cardTheme: CardThemeData(
+        color: darkSurface,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: darkSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        titleTextStyle: const TextStyle(
+          color: darkMainText,
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFF132240),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF334B6E)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF334B6E)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: darkPrimaryFill, width: 2),
+        ),
       ),
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
@@ -70,6 +113,11 @@ class AppTheme {
           fontSize: 20,
           fontWeight: FontWeight.w700,
         ),
+        titleMedium: TextStyle(
+          color: darkMainText,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
         bodyLarge: TextStyle(
           color: darkMainText,
           fontSize: 18,
@@ -83,13 +131,13 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          minimumSize: const Size(double.infinity, primaryButtonHeight),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          minimumSize: const Size(88.0, minTouchTarget),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           textStyle: const TextStyle(
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -108,7 +156,50 @@ class AppTheme {
         surface: lightSurface,
         onSurface: lightMainText,
         error: lightError,
-        onError: lightBackground,
+        onError: lightTextOnPrimary,
+        outline: Color(0xFFBAC5D5),
+      ),
+      appBarTheme: const AppBarTheme(
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: lightBackground,
+        foregroundColor: lightMainText,
+        centerTitle: false,
+      ),
+      cardTheme: CardThemeData(
+        color: lightSurface,
+        elevation: 1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: lightSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        titleTextStyle: const TextStyle(
+          color: lightMainText,
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFBAC5D5)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFBAC5D5)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: lightPrimaryFill, width: 2),
+        ),
       ),
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
@@ -127,6 +218,11 @@ class AppTheme {
           fontSize: 20,
           fontWeight: FontWeight.w700,
         ),
+        titleMedium: TextStyle(
+          color: lightMainText,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
         bodyLarge: TextStyle(
           color: lightMainText,
           fontSize: 18,
@@ -140,13 +236,13 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          minimumSize: const Size(double.infinity, primaryButtonHeight),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          minimumSize: const Size(88.0, minTouchTarget),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           textStyle: const TextStyle(
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
         ),

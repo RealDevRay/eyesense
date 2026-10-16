@@ -137,7 +137,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Cloud Processing Consent', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Allow sending single still images or text to configured AI services'),
+            subtitle: const Text('Allow sending single snapshots and questions to your configured AI provider. Read Text operates offline without consent.'),
             value: _cloudConsent,
             onChanged: (val) {
               setState(() => _cloudConsent = val);
@@ -152,15 +152,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: const Text('AI Connection', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             subtitle: const Text('Configure EyeSense service or Bring Your Own Groq Key'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 18),
-            onTap: () {
-              Navigator.of(context).push(
+            onTap: () async {
+              await Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => AiConnectionScreen(
                     preferencesService: widget.preferencesService,
                     credentialService: widget.credentialService,
+                    coordinator: widget.coordinator,
                   ),
                 ),
               );
+              if (mounted) {
+                widget.coordinator.refreshVisionProvider();
+              }
             },
           ),
           const SizedBox(height: 12),
@@ -188,8 +192,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: const Text('Tutorial & Practice', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             subtitle: const Text('Replay the introductory onboarding walkthrough'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 18),
-            onTap: () {
-              Navigator.of(context).push(
+            onTap: () async {
+              await Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (ctx) => OnboardingScreen(
                     coordinator: widget.coordinator,
@@ -197,6 +201,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               );
+              if (mounted) {
+                setState(() {
+                  _speechRate = widget.preferencesService.speechRate;
+                  _language = widget.preferencesService.language;
+                  _haptics = widget.preferencesService.hapticsEnabled;
+                  _autoRead = widget.preferencesService.autoRead;
+                  _cloudConsent = widget.preferencesService.cloudConsentGranted;
+                  _themeMode = widget.preferencesService.themeModeString;
+                });
+                widget.coordinator.refreshVisionProvider();
+              }
             },
           ),
         ],

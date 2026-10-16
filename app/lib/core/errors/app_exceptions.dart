@@ -1,5 +1,6 @@
 enum ErrorCode {
   cameraPermissionDenied,
+  cameraPermissionPermanentlyDenied,
   cameraUnavailable,
   microphonePermissionDenied,
   speechRecognitionUnavailable,
@@ -12,6 +13,8 @@ enum ErrorCode {
   validationFailed,
   staleResultDiscarded,
   operationCancelled,
+  cloudConsentRequired,
+  prohibitedSafetyGuidance,
   unknownError,
 }
 

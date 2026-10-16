@@ -59,6 +59,7 @@ class GroqDirectVisionProvider implements VisionApiService {
     required String requestId,
     required String base64Jpeg,
     required String language,
+    CancelToken? cancelToken,
   }) async {
     final userPrompt = 'Action: Describe Scene\nTarget Language: $language\nPlease provide a concise scene description and note any potential concerns.';
     return _sendToGroq(
@@ -66,6 +67,7 @@ class GroqDirectVisionProvider implements VisionApiService {
       base64Jpeg: base64Jpeg,
       language: language,
       isAskMode: false,
+      cancelToken: cancelToken,
     );
   }
 
@@ -75,6 +77,7 @@ class GroqDirectVisionProvider implements VisionApiService {
     required String base64Jpeg,
     required String question,
     required String language,
+    CancelToken? cancelToken,
   }) async {
     final userPrompt = 'Visual Question: $question\nTarget Language: $language\nPlease answer the question based only on the image.';
     return _sendToGroq(
@@ -82,6 +85,7 @@ class GroqDirectVisionProvider implements VisionApiService {
       base64Jpeg: base64Jpeg,
       language: language,
       isAskMode: true,
+      cancelToken: cancelToken,
     );
   }
 
@@ -90,6 +94,7 @@ class GroqDirectVisionProvider implements VisionApiService {
     required String base64Jpeg,
     required String language,
     required bool isAskMode,
+    CancelToken? cancelToken,
   }) async {
     final apiKey = await _getApiKey();
 
@@ -138,6 +143,7 @@ You must return a JSON object with this exact structure:
             'Content-Type': 'application/json',
           },
         ),
+        cancelToken: cancelToken,
       );
 
       if (response.statusCode == 200 && response.data != null) {
@@ -159,6 +165,12 @@ You must return a JSON object with this exact structure:
         userMessage: 'Unexpected response from Groq API.',
       );
     } on DioException catch (e) {
+      if (e.type == DioExceptionType.cancel) {
+        throw const AppException(
+          code: ErrorCode.operationCancelled,
+          userMessage: 'Operation was cancelled.',
+        );
+      }
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout) {
         throw const AppException(

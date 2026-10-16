@@ -17,21 +17,29 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final TextEditingController _questionController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    widget.coordinator.cameraService.initialize().then((_) {
-      if (mounted) setState(() {});
-    });
+    WidgetsBinding.instance.addObserver(this);
+    // Camera is initialized lazily when user activates a capture task
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _questionController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      widget.coordinator.stop();
+      widget.coordinator.cameraService.dispose();
+    }
   }
 
   void _showAskDialog() {
@@ -63,15 +71,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+        actionsOverflowButtonSpacing: 10,
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel'),
           ),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.primary,
-              foregroundColor: Theme.of(ctx).colorScheme.onPrimary,
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.primary,
+              side: BorderSide(color: Theme.of(ctx).colorScheme.primary),
             ),
             icon: const Icon(Icons.mic, size: 20),
             label: const Text('Voice Ask'),
@@ -82,8 +91,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.secondary,
-              foregroundColor: Theme.of(ctx).colorScheme.onSecondary,
+              backgroundColor: Theme.of(ctx).colorScheme.primary,
+              foregroundColor: Theme.of(ctx).colorScheme.onPrimary,
             ),
             onPressed: () {
               final q = _questionController.text.trim();
@@ -136,8 +145,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: IconButton(
                   icon: const Icon(Icons.settings, size: 30),
                   tooltip: 'Settings',
-                  onPressed: () {
-                    Navigator.of(context).push(
+                  onPressed: () async {
+                    await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => SettingsScreen(
                           preferencesService: coordinator.preferencesService,
@@ -147,6 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     );
+                    coordinator.refreshVisionProvider();
                   },
                 ),
               ),
@@ -170,11 +180,48 @@ class _HomeScreenState extends State<HomeScreen> {
                         margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
                           color: Colors.black,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Theme.of(context).colorScheme.surface, width: 2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
                         clipBehavior: Clip.antiAlias,
-                        child: CameraPreview(coordinator.cameraService.controller!),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            CameraPreview(coordinator.cameraService.controller!),
+                            Positioned(
+                              top: 8,
+                              left: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.65),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.videocam, color: Colors.white, size: 14),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Live Preview',
+                                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
 
@@ -250,10 +297,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: AppTheme.elementSpacing),
 
                   // Response details panel
-                  if (coordinator.lastResultText != null)
+                  if (coordinator.lastResultText != null || coordinator.lastPresentation != null)
                     ResponsePanelWidget(
                       resultText: coordinator.lastResultText,
                       sceneResult: coordinator.lastSceneResult,
+                      presentationRecord: coordinator.lastPresentation,
                       onRepeat: coordinator.repeatLast,
                       onStop: coordinator.stop,
                       isSpeaking: isSpeaking,

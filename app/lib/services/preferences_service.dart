@@ -14,6 +14,7 @@ class PreferencesService extends ChangeNotifier {
   static const _keyAwarenessEnabled = 'awareness_enabled';
   static const _keyThemeMode = 'theme_mode';
   static const _keyCompletedOnboarding = 'completed_onboarding';
+  static const _keyOnboardingStep = 'onboarding_step';
   static const _keyApiBaseUrl = 'api_base_url';
 
   final SharedPreferences _prefs;
@@ -40,6 +41,12 @@ class PreferencesService extends ChangeNotifier {
   bool get hasCompletedOnboarding => _prefs.getBool(_keyCompletedOnboarding) ?? false;
   Future<void> setCompletedOnboarding(bool val) async {
     await _prefs.setBool(_keyCompletedOnboarding, val);
+    notifyListeners();
+  }
+
+  int get onboardingStep => _prefs.getInt(_keyOnboardingStep) ?? 0;
+  Future<void> setOnboardingStep(int step) async {
+    await _prefs.setInt(_keyOnboardingStep, step);
     notifyListeners();
   }
 

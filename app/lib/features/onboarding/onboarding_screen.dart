@@ -19,14 +19,27 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  int _currentStep = 0;
+  late int _currentStep;
   bool _practiceCaptureSuccess = false;
 
   final int _totalSteps = 6;
 
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.coordinator.preferencesService.hasCompletedOnboarding) {
+      _currentStep = widget.coordinator.preferencesService.onboardingStep.clamp(0, _totalSteps - 1);
+    } else {
+      _currentStep = 0;
+    }
+  }
+
   void _nextStep() {
     if (_currentStep < _totalSteps - 1) {
       setState(() => _currentStep++);
+      if (!widget.coordinator.preferencesService.hasCompletedOnboarding) {
+        widget.coordinator.preferencesService.setOnboardingStep(_currentStep);
+      }
     } else {
       _finish();
     }
@@ -35,10 +48,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _previousStep() {
     if (_currentStep > 0) {
       setState(() => _currentStep--);
+      if (!widget.coordinator.preferencesService.hasCompletedOnboarding) {
+        widget.coordinator.preferencesService.setOnboardingStep(_currentStep);
+      }
     }
   }
 
   Future<void> _finish() async {
+    await widget.coordinator.preferencesService.setOnboardingStep(0);
     await widget.coordinator.preferencesService.setCompletedOnboarding(true);
     widget.onFinish();
   }
@@ -158,11 +175,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Your privacy is guaranteed:\n\n'
-              '• Read Text runs 100% on-device (zero image uploads, completely offline).\n'
-              '• Describe and Ask send a single still image to the secure AI service only when you explicitly tap the button.\n'
-              '• No images, audio, or private questions are stored on servers.',
-              style: theme.textTheme.bodyLarge,
+              'How EyeSense processes data:\n\n'
+              '• Read Text: Operates 100% on-device (offline OCR). No images or text are sent over the network.\n'
+              '• Describe & Ask: Sends one captured snapshot and your question to your configured AI provider (EyeSense Hosted Worker proxy or direct Groq BYOK).\n'
+              '• Upstream Processing: Requests sent to cloud providers are subject to provider processing and commercial retention terms. Once received by the cloud provider, requests cannot be recalled.\n'
+              '• Speech Recognition: Spoken commands use the device system speech service.\n'
+              '• BYOK mode: Uses your personal Groq API key and account quotas.',
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
             ),
             const SizedBox(height: 16),
             SwitchListTile(

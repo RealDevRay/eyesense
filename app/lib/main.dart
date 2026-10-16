@@ -179,9 +179,10 @@ class _EyeSenseBootstrapAppState extends State<EyeSenseBootstrapApp> {
                           ),
                         ),
                         const SizedBox(height: 40),
-                        const CircularProgressIndicator(
-                          color: Color(0xFF35D6C4),
-                        ),
+                        if (_isLoading)
+                          const CircularProgressIndicator(
+                            color: Color(0xFF35D6C4),
+                          ),
                       ],
                     ),
             ),

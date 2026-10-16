@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:eyesense/models/scene_result.dart';
 
 abstract class VisionApiService {
@@ -5,6 +6,7 @@ abstract class VisionApiService {
     required String requestId,
     required String base64Jpeg,
     required String language,
+    CancelToken? cancelToken,
   });
 
   Future<SceneResult> askQuestion({
@@ -12,5 +14,6 @@ abstract class VisionApiService {
     required String base64Jpeg,
     required String question,
     required String language,
+    CancelToken? cancelToken,
   });
 }

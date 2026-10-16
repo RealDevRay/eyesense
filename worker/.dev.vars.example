@@ -1,0 +1,9 @@
+# EyeSense Cloudflare Worker development environment template
+# Copy to worker/.dev.vars and supply local/test credentials.
+# NEVER commit real production API keys or tokens.
+
+GROQ_API_KEY="gsk_test_api_key_placeholder"
+DEMO_ACCESS_TOKEN="eyesense_dev_demo_token"
+GROQ_VISION_MODEL="qwen/qwen3.8-27b"
+ENABLE_CLOUD_REQUESTS="true"
+UPSTREAM_TIMEOUT_MS="12000"

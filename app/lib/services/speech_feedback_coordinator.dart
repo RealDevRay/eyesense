@@ -25,7 +25,6 @@ class SpeechFeedbackCoordinator {
 
   Future<void> playReadinessCue() async {
     await hapticService.confirmAction();
-    SemanticAnnouncer.announce('Listening for short command');
   }
 
   Future<void> stopAll() async {

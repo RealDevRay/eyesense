@@ -32,68 +32,66 @@ class AccessibleActionButton extends StatelessWidget {
 
     if (isDestructive) {
       backgroundColor = colorScheme.error;
-      foregroundColor = isDark ? AppTheme.darkBackground : AppTheme.lightBackground;
+      foregroundColor = colorScheme.onError;
     } else if (isSecondary) {
-      backgroundColor = isDark ? AppTheme.darkSurface : AppTheme.lightSurface;
-      foregroundColor = isDark ? AppTheme.darkMainText : AppTheme.lightMainText;
+      backgroundColor = colorScheme.surface;
+      foregroundColor = colorScheme.onSurface;
     } else {
       backgroundColor = colorScheme.primary;
       foregroundColor = colorScheme.onPrimary;
     }
 
-    return Semantics(
-      button: true,
-      enabled: onPressed != null && !isLoading,
-      label: label,
-      hint: semanticHint,
-      child: SizedBox(
-        width: double.infinity,
-        height: AppTheme.primaryButtonHeight, // 72 logical pixels minimum height
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: backgroundColor,
-            foregroundColor: foregroundColor,
-            elevation: isSecondary ? 1 : 3,
-            side: isSecondary
-                ? BorderSide(
-                    color: isDark ? AppTheme.darkSecondaryText.withOpacity(0.3) : AppTheme.lightSecondaryText.withOpacity(0.3),
-                    width: 2,
-                  )
-                : BorderSide.none,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-            ),
-          ),
-          onPressed: isLoading ? null : onPressed,
-          child: isLoading
-              ? SizedBox(
-                  width: 30,
-                  height: 30,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    color: foregroundColor,
-                  ),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minHeight: AppTheme.primaryButtonHeight,
+        minWidth: double.infinity,
+      ),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: backgroundColor,
+          foregroundColor: foregroundColor,
+          elevation: isSecondary ? 1 : 3,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          side: isSecondary
+              ? BorderSide(
+                  color: isDark
+                      ? AppTheme.darkSecondaryText.withOpacity(0.3)
+                      : AppTheme.lightSecondaryText.withOpacity(0.3),
+                  width: 2,
                 )
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icon, size: 30, color: foregroundColor),
-                    const SizedBox(width: 16),
-                    Flexible(
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: foregroundColor,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
+              : BorderSide.none,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
         ),
+        onPressed: isLoading ? null : onPressed,
+        child: isLoading
+            ? SizedBox(
+                width: 30,
+                height: 30,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: foregroundColor,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 28, color: foregroundColor),
+                  const SizedBox(width: 14),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: foregroundColor,
+                      ),
+                      softWrap: true,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

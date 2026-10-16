@@ -1,5 +1,7 @@
+import 'package:dio/dio.dart';
 import 'package:eyesense/agents/agent_task.dart';
 import 'package:eyesense/agents/output_policy.dart';
+import 'package:eyesense/core/errors/app_exceptions.dart';
 import 'package:eyesense/models/scene_result.dart';
 import 'package:eyesense/services/diagnostic_log_service.dart';
 import 'package:eyesense/services/vision_api_service.dart';
@@ -19,6 +21,8 @@ class SceneAgent {
     String? question,
     required String language,
     required int currentGeneration,
+    CancelToken? cancelToken,
+    DateTime Function()? nowProvider,
   }) async {
     final startTime = DateTime.now();
     task.recordCall();
@@ -38,21 +42,25 @@ class SceneAgent {
           base64Jpeg: base64Jpeg,
           question: question.trim(),
           language: language,
+          cancelToken: cancelToken,
         );
       } else {
         result = await visionApi.describeScene(
           requestId: task.requestId,
           base64Jpeg: base64Jpeg,
           language: language,
+          cancelToken: cancelToken,
         );
       }
 
       // Output policy verification (freshness, generation match, safety bounds)
-      OutputPolicy.validateSceneResult(
+      final validatedResult = OutputPolicy.validateSceneResult(
         result: result,
         captureTimestamp: task.captureTimestamp,
         taskGeneration: task.generation,
         currentGeneration: currentGeneration,
+        nowProvider: nowProvider,
+        language: language,
       );
 
       final duration = DateTime.now().difference(startTime).inMilliseconds;
@@ -65,9 +73,10 @@ class SceneAgent {
         outcome: 'success',
       );
 
-      return result;
+      return validatedResult;
     } catch (e) {
       final duration = DateTime.now().difference(startTime).inMilliseconds;
+      final errorCode = e is AppException ? e.code.name : 'unknown_error';
       await logService.logEvent(
         requestId: task.requestId,
         agent: 'scene',
@@ -75,7 +84,7 @@ class SceneAgent {
         event: 'agent_failed',
         durationMs: duration,
         outcome: 'failed',
-        errorCode: e.toString(),
+        errorCode: errorCode,
       );
       rethrow;
     }

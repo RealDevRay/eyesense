@@ -1,3 +1,5 @@
+import 'package:eyesense/core/errors/app_exceptions.dart';
+
 enum SceneDirection {
   left,
   centre,
@@ -16,8 +18,13 @@ enum SceneDirection {
         return SceneDirection.right;
       case 'multiple':
         return SceneDirection.multiple;
-      default:
+      case 'unknown':
         return SceneDirection.unknown;
+      default:
+        throw const AppException(
+          code: ErrorCode.validationFailed,
+          userMessage: 'Invalid direction value in scene result.',
+        );
     }
   }
 
@@ -42,10 +49,17 @@ enum ImageQuality {
   unclear;
 
   static ImageQuality fromString(String val) {
-    if (val.toLowerCase().trim() == 'unclear') {
-      return ImageQuality.unclear;
+    switch (val.toLowerCase().trim()) {
+      case 'usable':
+        return ImageQuality.usable;
+      case 'unclear':
+        return ImageQuality.unclear;
+      default:
+        throw const AppException(
+          code: ErrorCode.validationFailed,
+          userMessage: 'Invalid imageQuality value in scene result.',
+        );
     }
-    return ImageQuality.usable;
   }
 
   String toJson() => this == ImageQuality.usable ? 'usable' : 'unclear';
@@ -73,12 +87,49 @@ class SceneResult {
   });
 
   factory SceneResult.fromJson(Map<String, dynamic> json) {
-    final rawSummary = json['summary'] as String? ?? '';
-    final rawAnswer = json['answer'] as String?;
-    final rawConcern = json['possibleConcern'] as bool? ?? false;
+    final rawSummary = json['summary'];
+    if (rawSummary is! String || rawSummary.trim().isEmpty) {
+      throw const AppException(
+        code: ErrorCode.validationFailed,
+        userMessage: 'Invalid or missing summary in scene result.',
+      );
+    }
+
+    final rawQuality = json['imageQuality'];
+    if (rawQuality is! String) {
+      throw const AppException(
+        code: ErrorCode.validationFailed,
+        userMessage: 'Missing imageQuality field in scene result.',
+      );
+    }
+    final quality = ImageQuality.fromString(rawQuality);
+
+    final rawDirection = json['direction'];
+    if (rawDirection is! String) {
+      throw const AppException(
+        code: ErrorCode.validationFailed,
+        userMessage: 'Missing direction field in scene result.',
+      );
+    }
+    final direction = SceneDirection.fromString(rawDirection);
+
+    final rawPossibleConcern = json['possibleConcern'];
+    if (rawPossibleConcern is! bool) {
+      throw const AppException(
+        code: ErrorCode.validationFailed,
+        userMessage: 'Missing or non-boolean possibleConcern field in scene result.',
+      );
+    }
+
     final rawConcernDesc = json['concernDescription'] as String?;
-    final rawDirection = json['direction'] as String? ?? 'unknown';
-    final rawQuality = json['imageQuality'] as String? ?? 'usable';
+    if (rawPossibleConcern && (rawConcernDesc == null || rawConcernDesc.trim().isEmpty)) {
+      throw const AppException(
+        code: ErrorCode.validationFailed,
+        userMessage: 'Missing concernDescription when possibleConcern is true.',
+      );
+    }
+
+    final rawAnswer = json['answer'] as String?;
     final rawUncertainty = json['uncertainty'] as String?;
 
     final rawObjects = json['objects'];
@@ -91,19 +142,57 @@ class SceneResult {
       }
     }
 
+    final trimmedSummary = rawSummary.trim();
+    final boundedSummary = trimmedSummary.length > 350
+        ? trimmedSummary.substring(0, 350)
+        : trimmedSummary;
+
+    final trimmedAnswer = rawAnswer?.trim();
+    final boundedAnswer = trimmedAnswer != null && trimmedAnswer.length > 350
+        ? trimmedAnswer.substring(0, 350)
+        : trimmedAnswer;
+
+    final trimmedConcernDesc = rawConcernDesc?.trim();
+    final boundedConcernDesc = trimmedConcernDesc != null && trimmedConcernDesc.length > 250
+        ? trimmedConcernDesc.substring(0, 250)
+        : trimmedConcernDesc;
+
+    final trimmedUncertainty = rawUncertainty?.trim();
+    final boundedUncertainty = trimmedUncertainty != null && trimmedUncertainty.length > 250
+        ? trimmedUncertainty.substring(0, 250)
+        : trimmedUncertainty;
+
     return SceneResult(
-      summary: rawSummary.length > 350 ? rawSummary.substring(0, 350) : rawSummary,
-      answer: rawAnswer != null && rawAnswer.length > 350 ? rawAnswer.substring(0, 350) : rawAnswer,
-      possibleConcern: rawConcern,
-      concernDescription: rawConcernDesc != null && rawConcernDesc.length > 250
-          ? rawConcernDesc.substring(0, 250)
-          : rawConcernDesc,
-      direction: SceneDirection.fromString(rawDirection),
+      summary: boundedSummary,
+      answer: boundedAnswer,
+      possibleConcern: rawPossibleConcern,
+      concernDescription: boundedConcernDesc,
+      direction: direction,
       objects: parsedObjects.take(8).toList(),
-      imageQuality: ImageQuality.fromString(rawQuality),
-      uncertainty: rawUncertainty != null && rawUncertainty.length > 250
-          ? rawUncertainty.substring(0, 250)
-          : rawUncertainty,
+      imageQuality: quality,
+      uncertainty: boundedUncertainty,
+    );
+  }
+
+  SceneResult copyWith({
+    String? summary,
+    String? answer,
+    bool? possibleConcern,
+    String? concernDescription,
+    SceneDirection? direction,
+    List<String>? objects,
+    ImageQuality? imageQuality,
+    String? uncertainty,
+  }) {
+    return SceneResult(
+      summary: summary ?? this.summary,
+      answer: answer ?? this.answer,
+      possibleConcern: possibleConcern ?? this.possibleConcern,
+      concernDescription: concernDescription ?? this.concernDescription,
+      direction: direction ?? this.direction,
+      objects: objects ?? this.objects,
+      imageQuality: imageQuality ?? this.imageQuality,
+      uncertainty: uncertainty ?? this.uncertainty,
     );
   }
 

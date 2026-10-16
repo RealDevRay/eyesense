@@ -1,4 +1,3 @@
-import 'package:eyesense/core/theme/app_theme.dart';
 import 'package:eyesense/models/app_operation.dart';
 import 'package:flutter/material.dart';
 
@@ -14,6 +13,10 @@ class OperationStatusWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     final isError = state == OperationState.error;
     final isBusy = state != OperationState.idle && !isError;
 
@@ -21,45 +24,62 @@ class OperationStatusWidget extends StatelessWidget {
         ? (errorMessage ?? 'Error occurred')
         : state.localizedAnnouncement;
 
+    final containerColor = isError
+        ? colorScheme.error.withOpacity(isDark ? 0.2 : 0.1)
+        : (isDark ? const Color(0xFF132240) : colorScheme.surfaceContainerHighest.withOpacity(0.6));
+
+    final borderColor = isError
+        ? colorScheme.error
+        : (isBusy ? colorScheme.primary : colorScheme.outline.withOpacity(0.3));
+
+    final textColor = isError
+        ? colorScheme.error
+        : colorScheme.onSurface;
+
     return Semantics(
-      liveRegion: true,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      readOnly: true,
+      label: 'Status: $displayText',
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isError ? AppTheme.errorRed.withOpacity(0.2) : AppTheme.surfaceNavy,
-          borderRadius: BorderRadius.circular(12),
+          color: containerColor,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isError ? AppTheme.errorRed : AppTheme.tealAccent.withOpacity(0.4),
-            width: 1.5,
+            color: borderColor,
+            width: isBusy || isError ? 2.0 : 1.0,
           ),
         ),
         child: Row(
           children: [
             if (isBusy)
-              const Padding(
-                padding: EdgeInsets.only(right: 12),
+              Padding(
+                padding: const EdgeInsets.only(right: 14),
                 child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: AppTheme.tealAccent),
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: colorScheme.primary,
+                  ),
                 ),
               )
             else
               Padding(
-                padding: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.only(right: 14),
                 child: Icon(
-                  isError ? Icons.error_outline : Icons.check_circle_outline,
-                  color: isError ? AppTheme.errorRed : AppTheme.tealAccent,
-                  size: 22,
+                  isError ? Icons.error_outline : Icons.info_outline,
+                  color: isError ? colorScheme.error : colorScheme.primary,
+                  size: 24,
                 ),
               ),
             Expanded(
               child: Text(
                 displayText,
-                style: TextStyle(
-                  fontSize: 16,
+                style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: isError ? AppTheme.errorRed : AppTheme.textNearWhite,
+                  color: textColor,
                 ),
               ),
             ),

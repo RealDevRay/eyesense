@@ -1,3 +1,4 @@
+import { enforceWorkerOutputPolicy } from "./output_policy";
 import { SCENE_AGENT_SYSTEM_PROMPT } from "./prompts";
 import { SceneResult, SceneResultSchema, VisionRequest } from "./schema";
 
@@ -69,14 +70,13 @@ export async function processVisionRequest(
     });
 
     if (!res.ok) {
-      const errText = await res.text();
       if (res.status === 429) {
         throw new Error("RATE_LIMITED");
       }
       if (res.status === 401 || res.status === 403) {
-        throw new Error(`UPSTREAM_AUTH_ERROR: ${res.status} - ${errText}`);
+        throw new Error("UPSTREAM_AUTH_ERROR");
       }
-      throw new Error(`UPSTREAM_ERROR: ${res.status} - ${errText}`);
+      throw new Error("UPSTREAM_SERVICE_ERROR");
     }
 
     const groqJson = (await res.json()) as any;
@@ -93,7 +93,9 @@ export async function processVisionRequest(
     }
 
     const validated = SceneResultSchema.parse(parsed);
-    return validated;
+    // Enforce server-side output policy and conservative limitations
+    const safeResult = enforceWorkerOutputPolicy(validated, req.language);
+    return safeResult;
   } catch (err: any) {
     if (err.name === "AbortError") {
       throw new Error("UPSTREAM_TIMEOUT");

@@ -28,7 +28,7 @@ class HostedVisionProvider implements VisionApiService {
     if (token == null || token.isEmpty) {
       throw const AppException(
         code: ErrorCode.upstreamAuthFailed,
-        userMessage: 'Demo access token is not configured. Please check AI connection settings.',
+        userMessage: 'Hosted access token is not configured. Please check AI connection settings.',
       );
     }
     return {
@@ -42,16 +42,20 @@ class HostedVisionProvider implements VisionApiService {
     required String requestId,
     required String base64Jpeg,
     required String language,
+    CancelToken? cancelToken,
   }) async {
-    return _sendRequest({
-      'requestId': requestId,
-      'mode': 'describe',
-      'language': language,
-      'image': {
-        'mimeType': 'image/jpeg',
-        'base64': base64Jpeg,
+    return _sendRequest(
+      {
+        'requestId': requestId,
+        'mode': 'describe',
+        'language': language,
+        'image': {
+          'mimeType': 'image/jpeg',
+          'base64': base64Jpeg,
+        },
       },
-    });
+      cancelToken: cancelToken,
+    );
   }
 
   @override
@@ -60,26 +64,34 @@ class HostedVisionProvider implements VisionApiService {
     required String base64Jpeg,
     required String question,
     required String language,
+    CancelToken? cancelToken,
   }) async {
-    return _sendRequest({
-      'requestId': requestId,
-      'mode': 'ask',
-      'language': language,
-      'question': question,
-      'image': {
-        'mimeType': 'image/jpeg',
-        'base64': base64Jpeg,
+    return _sendRequest(
+      {
+        'requestId': requestId,
+        'mode': 'ask',
+        'language': language,
+        'question': question,
+        'image': {
+          'mimeType': 'image/jpeg',
+          'base64': base64Jpeg,
+        },
       },
-    });
+      cancelToken: cancelToken,
+    );
   }
 
-  Future<SceneResult> _sendRequest(Map<String, dynamic> body) async {
+  Future<SceneResult> _sendRequest(
+    Map<String, dynamic> body, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final headers = await _getAuthHeaders();
       final response = await _dio.post(
         '$_baseUrl/v1/vision',
         data: body,
         options: Options(headers: headers),
+        cancelToken: cancelToken,
       );
 
       if (response.statusCode == 200 && response.data != null) {
@@ -99,6 +111,12 @@ class HostedVisionProvider implements VisionApiService {
         userMessage: 'Unexpected server response.',
       );
     } on DioException catch (e) {
+      if (e.type == DioExceptionType.cancel) {
+        throw const AppException(
+          code: ErrorCode.operationCancelled,
+          userMessage: 'Operation was cancelled.',
+        );
+      }
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout) {
         throw const AppException(

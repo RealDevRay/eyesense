@@ -90,14 +90,24 @@ EyeSense provides visual assistance for blind and low-vision users through spoke
 | Agent | Responsibility | Permitted Tools / Actions | Max Completion Tokens |
 |---|---|---|---|
 | **Scene Agent** | Describes visible scene, answers visual questions grounded in image. | Reads supplied image, returns structured JSON. | 512 tokens |
-| **Reading Agent** | Summarises or explains OCR text only upon explicit user request. | Reads supplied text, returns bounded summary. | 768 tokens |
-| **Conversation Agent**| Clarifies ambiguous requests, classifies user intent. | Returns plan (`describe_scene`, `read_text`, `ask_scene`, `clarify`). | 256 tokens |
-| **Coordinator** | Deterministic state machine, mutex, cancellation, freshness. | Executes local services, enforces policies. | N/A (deterministic code) |
+| **Reading Agent** | Processes and bounds OCR text locally on-device. Deferred cloud `/v1/reading` route is disabled (404 ROUTE_DISABLED). | Local on-device text bounds and formatting. | N/A (local offline) |
+| **Conversation Agent** | Routes short voice commands deterministically using token-aware regex. Deferred cloud `/v1/conversation` route is disabled (404 ROUTE_DISABLED). | Local regex intent router (`describe`, `read`, `ask`, `repeat`, `stop`). | N/A (local offline) |
+| **Coordinator** | Deterministic state machine, mutex, cancellation tokens, freshness enforcement, live provider switching. | Executes local services, enforces output & safety policy. | N/A (deterministic code) |
 
 ---
 
-## 4. Privacy, Security & Diagnostics
+## 4. Safety Boundaries & Prohibited Output Policy
+
+1. **No Road-Crossing or Navigation Guidance:** Both the mobile app (`OutputPolicy.validateSceneResult`) and the Cloudflare Worker (`worker/src/output_policy.ts`) intercept and scrub any clear-path assertions, road-crossing instructions, or collision guarantees. These are replaced with conservative limitation statements in English and Kiswahili.
+2. **Freshness Budget:** Output older than 15 seconds from physical capture is rejected and never presented to the user.
+3. **Generation Serialization & Cancellation:** Monotonic generation tokens ensure that superseded or cancelled tasks immediately drop their network callbacks and speech playback.
+
+---
+
+## 5. Privacy, Security & Diagnostics
 
 1. **No Cloud Backup of Credentials:** `android:allowBackup="false"` in AndroidManifest ensures encrypted keys are never synchronized to Google Cloud backups.
-2. **Opt-in Diagnostics:** Disabled by default. Writes strictly allowlisted technical metrics (latencies, token counts, error codes) into local JSONL files (`eyesense-YYYY-MM-DD-001.jsonl`).
-3. **No Private Content in Logs:** Images, voice audio, questions, OCR text, and API keys are strictly excluded from logs and exports.
+2. **Consent Enforcement:** Cloud AI analysis (Describe and Ask) strictly requires prior user consent. Read Text operates 100% offline without requiring consent, API keys, or network connectivity.
+3. **Opt-in Diagnostics:** Disabled by default. Writes strictly allowlisted technical metrics (latencies, token counts, error codes) into local JSONL files (`eyesense-YYYY-MM-DD-001.jsonl`).
+4. **No Private Content in Logs:** Images, voice audio, questions, OCR text, and API keys are strictly excluded from logs and exports.
+

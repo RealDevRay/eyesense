@@ -1,17 +1,21 @@
+import 'package:eyesense/agents/agent_coordinator.dart';
 import 'package:eyesense/core/theme/app_theme.dart';
 import 'package:eyesense/models/app_operation.dart';
 import 'package:eyesense/services/credential_service.dart';
 import 'package:eyesense/services/preferences_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class AiConnectionScreen extends StatefulWidget {
   final PreferencesService preferencesService;
   final CredentialService credentialService;
+  final AgentCoordinator? coordinator;
 
   const AiConnectionScreen({
     super.key,
     required this.preferencesService,
     required this.credentialService,
+    this.coordinator,
   });
 
   @override
@@ -58,6 +62,24 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
     super.dispose();
   }
 
+  String? _validateWorkerUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) {
+      return 'Worker Base URL cannot be empty.';
+    }
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      return 'Please enter a valid URL (e.g. https://eyesense-api.example.workers.dev).';
+    }
+    if (kReleaseMode && uri.scheme != 'https') {
+      return 'Release builds require a secure HTTPS URL.';
+    }
+    if (!kReleaseMode && uri.scheme != 'https' && uri.scheme != 'http') {
+      return 'URL scheme must be http or https.';
+    }
+    return null;
+  }
+
   Future<void> _testPersonalKey() async {
     final key = _apiKeyController.text.trim();
     if (key.isEmpty) {
@@ -88,9 +110,10 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
 
   Future<void> _testWorker() async {
     final url = _workerUrlController.text.trim();
-    if (url.isEmpty) {
+    final validationError = _validateWorkerUrl(url);
+    if (validationError != null) {
       setState(() {
-        _workerTestStatusMessage = 'Please enter a Worker URL first.';
+        _workerTestStatusMessage = validationError;
         _workerTestSuccess = false;
       });
       return;
@@ -115,19 +138,28 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
   }
 
   Future<void> _saveSettings() async {
-    await widget.preferencesService.setProviderMode(_selectedMode);
-    if (_workerUrlController.text.trim().isNotEmpty) {
-      await widget.preferencesService.setApiBaseUrl(_workerUrlController.text.trim());
-    }
-    if (_selectedMode == ProviderMode.byok) {
-      if (_apiKeyController.text.trim().isNotEmpty) {
-        await widget.credentialService.setUserGroqApiKey(_apiKeyController.text.trim());
+    if (_selectedMode == ProviderMode.hosted) {
+      final url = _workerUrlController.text.trim();
+      final validationError = _validateWorkerUrl(url);
+      if (validationError != null) {
+        setState(() {
+          _workerTestStatusMessage = validationError;
+          _workerTestSuccess = false;
+        });
+        return;
       }
-    } else {
+      await widget.preferencesService.setApiBaseUrl(url);
       if (_demoTokenController.text.trim().isNotEmpty) {
         await widget.credentialService.setDemoAccessToken(_demoTokenController.text.trim());
       }
+    } else {
+      if (_apiKeyController.text.trim().isNotEmpty) {
+        await widget.credentialService.setUserGroqApiKey(_apiKeyController.text.trim());
+      }
     }
+
+    await widget.preferencesService.setProviderMode(_selectedMode);
+    widget.coordinator?.refreshVisionProvider();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -148,6 +180,9 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('AI Connection'),
@@ -159,11 +194,11 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
           children: [
             Text(
               'Select Connection Mode',
-              style: Theme.of(context).textTheme.titleLarge,
+              style: theme.textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
             RadioListTile<ProviderMode>(
-              activeColor: AppTheme.tealAccent,
+              activeColor: colorScheme.primary,
               title: const Text('EyeSense service (Hosted prototype)'),
               subtitle: const Text('Connects through the secure EyeSense Worker proxy.'),
               value: ProviderMode.hosted,
@@ -173,7 +208,7 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
               },
             ),
             RadioListTile<ProviderMode>(
-              activeColor: AppTheme.tealAccent,
+              activeColor: colorScheme.primary,
               title: const Text('Use my Groq key (BYOK mode)'),
               subtitle: const Text('Direct device-to-Groq connection using your own account.'),
               value: ProviderMode.byok,
@@ -186,7 +221,7 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
             if (_selectedMode == ProviderMode.byok) ...[
               Text(
                 'Personal Groq API Key',
-                style: Theme.of(context).textTheme.titleMedium,
+                style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
               TextField(
@@ -199,26 +234,34 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
                 children: [
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.tealAccent,
-                      foregroundColor: AppTheme.backgroundNavy,
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      minimumSize: const Size(88, AppTheme.minTouchTarget),
                     ),
                     icon: _isTestingKey
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.backgroundNavy),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.onPrimary,
+                            ),
                           )
                         : const Icon(Icons.check_circle_outline, size: 20),
                     label: const Text('Test Key'),
                     onPressed: _isTestingKey ? null : _testPersonalKey,
                   ),
-                  const SizedBox(width: 12),
                   OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(foregroundColor: AppTheme.errorRed),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colorScheme.error,
+                      minimumSize: const Size(88, AppTheme.minTouchTarget),
+                    ),
                     icon: const Icon(Icons.delete_outline, size: 20),
                     label: const Text('Remove'),
                     onPressed: _clearKey,
@@ -231,10 +274,10 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
                   _testStatusMessage!,
                   style: TextStyle(
                     color: _testSuccess == true
-                        ? AppTheme.tealLight
+                        ? colorScheme.primary
                         : _testSuccess == false
-                            ? AppTheme.errorRed
-                            : AppTheme.textMuted,
+                            ? colorScheme.error
+                            : colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -242,7 +285,7 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
             ] else ...[
               Text(
                 'Cloudflare Worker API URL',
-                style: Theme.of(context).textTheme.titleMedium,
+                style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
               TextField(
@@ -254,18 +297,24 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
                 children: [
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.tealAccent,
-                      foregroundColor: AppTheme.backgroundNavy,
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      minimumSize: const Size(88, AppTheme.minTouchTarget),
                     ),
                     icon: _isTestingWorker
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.backgroundNavy),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.onPrimary,
+                            ),
                           )
                         : const Icon(Icons.cloud_done_outlined, size: 20),
                     label: const Text('Test Worker Connection'),
@@ -279,10 +328,10 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
                   _workerTestStatusMessage!,
                   style: TextStyle(
                     color: _workerTestSuccess == true
-                        ? AppTheme.tealLight
+                        ? colorScheme.primary
                         : _workerTestSuccess == false
-                            ? AppTheme.errorRed
-                            : AppTheme.textMuted,
+                            ? colorScheme.error
+                            : colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -290,7 +339,7 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
               const SizedBox(height: 20),
               Text(
                 'Prototype Demo Token',
-                style: Theme.of(context).textTheme.titleMedium,
+                style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
               TextField(
@@ -309,8 +358,8 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
               height: AppTheme.primaryButtonHeight,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.tealAccent,
-                  foregroundColor: AppTheme.backgroundNavy,
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
                 ),
                 onPressed: _saveSettings,
                 child: const Text('Save Connection Settings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
