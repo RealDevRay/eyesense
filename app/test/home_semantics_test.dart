@@ -96,4 +96,30 @@ void main() {
     await pumpHome(tester, width: 320, height: 640, scale: 2);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('two fingers stop and three fingers repeat', (tester) async {
+    await pumpHome(tester);
+    final tts = coordinator.ttsService as FakeTtsService;
+    final target = tester.getCenter(find.byKey(const Key('action-stop')));
+
+    final first = await tester.startGesture(target);
+    final second = await tester.startGesture(target.translate(8, 0));
+    await first.up();
+    await second.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(tts.spokenTexts, contains('Stopped'));
+
+    tts.spokenTexts.clear();
+    final a = await tester.startGesture(target);
+    final b = await tester.startGesture(target.translate(8, 0));
+    final c = await tester.startGesture(target.translate(-8, 0));
+    await a.up();
+    await b.up();
+    await c.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(tts.spokenTexts, contains('No previous description available.'));
+    await tester.pump(const Duration(milliseconds: 400));
+  });
 }

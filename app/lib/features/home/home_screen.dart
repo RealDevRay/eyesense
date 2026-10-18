@@ -23,7 +23,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final FocusNode _resultFocus = FocusNode();
-  final Set<int> _downPointers = <int>{};
+  final Map<int, Offset> _pointerOrigin = <int, Offset>{};
+  int _peakPointers = 0;
+  bool _pointerMoved = false;
   String? _lastFocusedResult;
   static const _hardware = MethodChannel('eyesense/hardware');
 
@@ -47,14 +49,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _onPointerDown(PointerDownEvent event) {
-    _downPointers.add(event.pointer);
+    _pointerOrigin[event.pointer] = event.position;
+    if (_pointerOrigin.length > _peakPointers) {
+      _peakPointers = _pointerOrigin.length;
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    final origin = _pointerOrigin[event.pointer];
+    if (origin != null && (event.position - origin).distance > 32) {
+      _pointerMoved = true;
+    }
   }
 
   void _onPointerEnd(PointerEvent event) {
-    final wasThree = _downPointers.length >= 3;
-    _downPointers.remove(event.pointer);
-    if (wasThree && _downPointers.isEmpty) {
+    _pointerOrigin.remove(event.pointer);
+    if (_pointerOrigin.isNotEmpty) return;
+    final peak = _peakPointers;
+    final moved = _pointerMoved;
+    _peakPointers = 0;
+    _pointerMoved = false;
+    if (moved) return;
+    if (peak >= 3) {
       widget.coordinator.repeatLast();
+    } else if (peak == 2) {
+      widget.coordinator.stop();
     }
   }
 
@@ -181,6 +200,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               },
               child: Listener(
                 onPointerDown: _onPointerDown,
+                onPointerMove: _onPointerMove,
                 onPointerUp: _onPointerEnd,
                 onPointerCancel: _onPointerEnd,
                 child: GestureDetector(

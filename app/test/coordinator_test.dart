@@ -48,6 +48,18 @@ class FakeCameraService extends CameraService {
 
   @override
   Future<void> deleteTemporaryCapture(File? file) async {}
+
+  @override
+  Future<bool> hasPermission() async => true;
+
+  @override
+  Future<bool> requestPermission() async => true;
+
+  @override
+  Future<bool> isPermissionPermanentlyDenied() async => false;
+
+  @override
+  Future<void> dispose() async {}
 }
 
 class FakeVisionApiService implements VisionApiService {

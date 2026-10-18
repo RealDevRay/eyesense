@@ -1,0 +1,12 @@
+{
+  "name": "eyesense-brand-tools",
+  "private": true,
+  "type": "module",
+  "description": "Generates the raster launcher and store icons from the brand mark.",
+  "scripts": {
+    "build": "node generate.mjs"
+  },
+  "dependencies": {
+    "sharp": "^0.33.5"
+  }
+}

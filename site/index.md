@@ -31,4 +31,6 @@ EyeSense is currently a prototype in pilot. It may be unavailable or change subs
 - [Privacy Policy](/privacy)
 - [Terms of Use](/terms)
 
+Both are also available in Kiswahili: [Kiswahili](/sw). The English versions are the authoritative reference where a translation differs.
+
 Questions, or a request for either document in another format or language: [info@devray.qzz.io](mailto:info@devray.qzz.io)

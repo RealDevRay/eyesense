@@ -26,6 +26,7 @@ class PreferencesService extends ChangeNotifier {
   static const _keyAppMode = 'app_mode';
   static const _keyTermsVersion = 'terms_version_accepted';
   static const _keyTermsAcceptedAt = 'terms_accepted_at';
+  static const _keySafetyBriefing = 'safety_briefing_acknowledged_version';
   static const _keyLaunchOrientationCount = 'launch_orientation_count';
   static const _keyPreferredTextScale = 'preferred_text_scale';
 
@@ -199,6 +200,16 @@ class PreferencesService extends ChangeNotifier {
   Future<void> recordTermsAcceptance() async {
     await _prefs.setString(_keyTermsVersion, AppConfig.termsVersion);
     await _prefs.setString(_keyTermsAcceptedAt, DateTime.now().toUtc().toIso8601String());
+    notifyListeners();
+  }
+
+  /// Tracked against the terms version so that a change to the safety wording
+  /// is shown again rather than assumed to have been read years ago.
+  bool get hasAcknowledgedSafety =>
+      _prefs.getString(_keySafetyBriefing) == AppConfig.termsVersion;
+
+  Future<void> recordSafetyAcknowledgement() async {
+    await _prefs.setString(_keySafetyBriefing, AppConfig.termsVersion);
     notifyListeners();
   }
 

@@ -118,11 +118,13 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                     children: [
                       Icon(Icons.shield_outlined, color: colorScheme.primary, size: 22),
                       const SizedBox(width: 8),
-                      Text(
-                        'Privacy Protection Notice',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: colorScheme.primary,
-                          fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Text(
+                          'Privacy Protection Notice',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -137,9 +139,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
             ),
             const SizedBox(height: 24),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Retained Log Size:', style: theme.textTheme.titleSmall),
+                Expanded(child: Text('Retained Log Size:', style: theme.textTheme.titleSmall)),
                 _isLoading
                     ? SizedBox(
                         width: 16,

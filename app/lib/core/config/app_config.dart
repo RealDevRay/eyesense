@@ -15,7 +15,7 @@ class AppConfig {
     defaultValue: '',
   );
 
-  static const String termsVersion = '2026-10-18-draft';
+  static const String termsVersion = '1.0';
   static const String appVersionLabel = '1.0.0+1';
 
   // Fixed Groq API Endpoint for BYOK direct mode

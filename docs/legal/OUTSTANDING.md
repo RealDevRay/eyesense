@@ -32,6 +32,12 @@ parts most likely to need changing.
   directed at children without naming an age, because the threshold is
   jurisdiction-dependent (13 under COPPA, 13–16 under GDPR, different again
   elsewhere). Once the operating jurisdiction is fixed, state the age.
+- **Two Data Safety judgement calls**, set out in full in
+  `docs/legal/play-data-safety.md` §4. In short: whether Groq can be treated as a
+  service provider, which decides if the photograph is declared as *shared*; and
+  whether using the platform speech recogniser means the app collects audio. Both
+  are currently answered conservatively, so an incorrect answer over-declares
+  rather than under-declares.
 
 ## 2. Deliberate interim choices
 
@@ -81,15 +87,20 @@ Recorded so the next review knows what was actually checked rather than assumed.
 
 ## 4. Still to do, not legal
 
-- **Kiswahili translations** of both documents. The app offers Kiswahili, so
-  publishing English-only legal text is a real accessibility gap for part of the
-  intended audience.
-- **Play Data Safety declaration** must match the policy, and in particular must
-  now declare that an IP address is collected for abuse prevention and not
-  linked to a user.
-- **Safety section surfaced in onboarding**, not only in the terms. A blind user
-  who never opens Settings → Legal should still hear that this is not a mobility
-  aid.
+- **Kiswahili translations** are drafted (`*.sw.md`, served at `/sw/privacy` and
+  `/sw/terms`, and loaded in-app when the language is Kiswahili) but **have not
+  been reviewed by a Kiswahili-speaking lawyer**. Both documents say so in their
+  closing note, and both state that the English version governs where the
+  translation differs.
+- **Onboarding is English-only**, including the new safety briefing in
+  `app/lib/features/onboarding/safety_briefing.dart`. The app offers Kiswahili,
+  so a Kiswahili user now acknowledges limits written in a language they may not
+  read. The briefing is held as data specifically so it can be translated
+  without touching the screen; translating the rest of onboarding is the larger
+  job.
+- **Play Data Safety** is written up row by row in
+  `docs/legal/play-data-safety.md`, but nobody has entered it in Play Console
+  yet, and it depends on the two judgement calls in §1 above.
 - **`/privacy/history`** redirects to `/privacy` while only one version exists.
   Policy §12 promises prior versions live there, so publish the superseded
   version and drop the redirect at the first revision.

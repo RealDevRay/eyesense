@@ -676,10 +676,15 @@ It is a solid dot (the lens) with three arcs of increasing radius opening to the
 - [x] **Monochrome layer:** `drawable/ic_launcher_monochrome.xml`, referenced by
       the `<monochrome>` tag. Identical geometry; the platform tints it from the
       wallpaper palette, so only its alpha matters.
-- [ ] **Play listing icon:** 512 × 512 px PNG, 32-bit, no transparency, no rounded corners applied by you (Play masks it).
+- [x] **Play listing icon:** `store/play-icon-512.png`, 512 × 512, 32-bit, fully
+      opaque, square. Verified `channels=4, alpha=true` — `sharp`'s `.flatten()`
+      alone emits 24-bit, which Play rejects, so `.ensureAlpha(1)` is required.
 - [x] Icon is **mark only, never the wordmark**.
-- [ ] Replace the existing generic launcher mipmaps — the pre-API-26 rasters in
-      `mipmap-{m,h,xh,xxh,xxxh}dpi` are still the old artwork.
+- [x] Replaced the generic launcher mipmaps. `tools/brand/generate.mjs` renders
+      `mipmap-{m,h,xh,xxh,xxxh}dpi/ic_launcher.png` at 48/72/96/144/192 from the
+      same geometry as the vectors, so the two cannot drift. The rasters carry an
+      ink plate and rounded corners because nothing masks them before API 26;
+      the adaptive layers must not, because the platform masks those itself.
 
 Verified with `aapt2 compile --dir res` followed by `aapt2 link`, then
 `aapt2 dump resources`, which confirms `mipmap/ic_launcher` resolves to
@@ -715,11 +720,13 @@ Two distinct surfaces that currently disagree.
 #### Steps
 
 - [ ] Review the provided SVGs, adjust, and commit the chosen variants.
-- [ ] Export PNG raster sets at 1×, 2×, 3× for any context that cannot consume SVG.
+- [x] Export PNG raster sets for contexts that cannot consume SVG — `tools/brand/`
+      (`npm install && npm run build`), checked in so the build needs no Node.
 - [x] Add the font and brand directories to `pubspec.yaml` assets — `assets/brand/`,
       `assets/earcons/`, `assets/legal/` and the two Atkinson Hyperlegible faces
       are all registered, and `AppTheme.fontFamily` consumes the family.
-- [ ] Remove the now-unused `assets/icon/app_icon.png` or replace it with the generated mark. Still registered in `pubspec.yaml` but referenced from no Dart code.
+- [x] Removed the unused `assets/icon/app_icon.png` and its `pubspec.yaml` entry.
+      It was referenced from no Dart code and shipped in every APK.
 
 ---
 
@@ -765,7 +772,20 @@ A privacy policy that overstates protection is a worse liability than none.
       `/privacy` is the URL for the Play listing.
 - [x] Contact route a blind user can use: `info@devray.qzz.io`, with an offer of
       an alternative format or language in both documents.
-- [ ] Prepare Kiswahili translations, given the app's supported languages.
+- [x] Prepare Kiswahili translations, given the app's supported languages.
+      `privacy-policy.sw.md` and `terms-of-service.sw.md` are served at
+      `/sw/privacy` and `/sw/terms` and loaded in-app when the language is
+      Kiswahili. `LegalDocumentScreen` takes a language and falls back to
+      English with an explicit on-screen notice rather than an error when a
+      translation is absent — guarded by `test/legal_document_test.dart`.
+
+      Both translations close by stating that the English version governs where
+      they differ, because **neither has been reviewed by a Kiswahili-speaking
+      lawyer**. See `docs/legal/OUTSTANDING.md`.
+
+      The site now builds both languages with per-page `hreflang` alternates and
+      a language switcher that stays on the same document rather than returning
+      to the homepage.
 
 ### S7.3 — In-app legal screens
 
@@ -791,23 +811,56 @@ A privacy policy that overstates protection is a worse liability than none.
       as headings; and no `|` or `---` survives table rendering.
 - [ ] Use Flutter's `LicensePage` for third-party licences. ML Kit, camera, dio, flutter_tts, speech_to_text and others carry attribution obligations currently unmet.
 - [ ] Record which terms version was accepted and when. The current `cloudConsentGranted` boolean does not record what was agreed to.
-- [ ] Surface Safety and Limitations prominently. "EyeSense is a supplementary visual assistant. It is not a replacement for a cane, guide dog, or personal mobility aid" is the most important sentence in the product and currently appears once, in step 1 of a skippable tutorial.
+- [x] Surface Safety and Limitations prominently. It had been one sentence inside
+      the welcome paragraph of a skippable tutorial, with a Skip button beside it.
+
+      It is now its own onboarding step. `features/onboarding/safety_briefing.dart`
+      holds the five limits **as data**, so the same wording is spoken aloud and
+      shown on screen and the two cannot drift; it is also what makes the
+      briefing translatable without touching the screen. The step:
+
+      - speaks the whole briefing on arrival, because a blind user is the least
+        likely to discover a wall of text by exploring for it;
+      - gives each limit its own semantics node carrying its full text, so a
+        single point can be re-read without replaying all five;
+      - requires "I understand these limits" before continuing, recorded against
+        `AppConfig.termsVersion` so a change to the wording asks again;
+      - **keeps Continue enabled and explains the gate aloud when pressed**, since
+        a disabled button announces itself as dimmed and gives no reason; and
+      - removes Skip from this step, and makes Skip elsewhere land *on* the
+        briefing rather than past it while it is unacknowledged.
+
+      Guarded by `test/onboarding_safety_test.dart` (5 tests), including that
+      Skip cannot be used to escape it.
 
 ### S7.4 — Play Data Safety declaration
 
-| Data type | Collected | Shared | Notes |
-| --- | --- | --- | --- |
-| Photos | Yes, transient | Yes, with consent | Sent to the inference provider for Describe and Ask only |
-| Audio | No | No | Captured by the device speech service; the app receives only text |
-| Location | No | No | No permission requested |
-| Personal identifiers | No | No | No accounts |
-| App activity / diagnostics | Yes, optional | No | Opt-in, local only |
-| Credentials | Yes, local only | No | BYOK key in `EncryptedSharedPreferences` |
+Written out field by field in **`docs/legal/play-data-safety.md`**, with the
+reason for every answer and the code or policy section it rests on. The summary
+table that used to live here is gone: it is the kind of thing that drifts out of
+step with the policy, which is exactly the failure Play rejects listings for.
 
-- [ ] Declare photos as collected **and** shared. Transient processing counts as collection when data leaves the device.
-- [ ] **Declare the IP address** as collected for abuse prevention and not linked to a user, to match policy §3.7. This row was missing from the table above and would have made the declaration inconsistent with the published policy.
-- [ ] Declare encryption in transit.
-- [ ] Provide a data-deletion explanation even though there are no accounts; Play requires one.
+- [x] Declare photos as collected **and** shared. Transient processing counts as
+      collection when data leaves the device.
+- [x] Declare the question text, under *App activity → Other user-generated
+      content*. It was missing entirely.
+- [x] **The IP address.** Resolved, and the answer is that Play's data-type list
+      has no IP address entry at all — so the right outcome is *no declaration*,
+      deliberately, with the reasoning recorded. It is not a *Device or other ID*
+      (that category means advertising IDs, Android ID, IMEI, MAC), and it would
+      only require *Approximate location* if used to derive location, which it is
+      not: it is the key for a rate-limit counter cleared at the UTC day boundary.
+      It stays disclosed in policy §3.7 because Play requires the policy to be
+      complete even where the form has no matching field.
+- [x] Declare encryption in transit — `android:networkSecurityConfig` forbids
+      cleartext.
+- [x] Resolve data deletion: nothing is retained to delete, there are no
+      accounts, and local data goes with an uninstall. No account-deletion URL
+      is required.
+- [ ] Enter it in Play Console. Two judgement calls listed in
+      `play-data-safety.md` §4 should be confirmed by the reviewer first; both are
+      currently answered conservatively, so being wrong over-declares rather than
+      under-declares.
 - [ ] Complete the accessibility declaration honestly. Do not claim full screen-reader support until Stages 1 and 5 are verified on a device by a blind tester.
 
 ### S7.5 — Medical and assistive positioning

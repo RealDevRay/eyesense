@@ -8,6 +8,16 @@ Serves the legal pages that Google Play requires and that the app links to, at
 | `/` | Landing page, from `index.md` |
 | `/privacy` | Privacy Policy, from `app/assets/legal/privacy-policy.md` |
 | `/terms` | Terms of Use, from `app/assets/legal/terms-of-service.md` |
+| `/sw` | Kiswahili landing page, from `index.sw.md` |
+| `/sw/privacy` | Sera ya Faragha, from `app/assets/legal/privacy-policy.sw.md` |
+| `/sw/terms` | Masharti ya Matumizi, from `app/assets/legal/terms-of-service.sw.md` |
+
+The app offers Kiswahili, so publishing the legal text in English only would
+have excluded part of the intended audience. `LegalDocumentScreen` picks the
+`.sw.md` asset when the language preference is `sw` and falls back to English
+with a visible notice, so a missing translation can never leave someone with an
+error screen instead of the terms. Each page declares `hreflang` and carries a
+language switcher in its header.
 
 ## Why it is built this way
 

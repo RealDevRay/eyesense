@@ -74,25 +74,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Theme Mode', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            subtitle: const Text('System, dark, light, or maximum contrast'),
-            trailing: DropdownButton<String>(
-              dropdownColor: Theme.of(context).colorScheme.surface,
-              value: _themeMode,
-              items: const [
-                DropdownMenuItem(value: 'system', child: Text('System')),
-                DropdownMenuItem(value: 'dark', child: Text('Dark')),
-                DropdownMenuItem(value: 'light', child: Text('Light')),
-                DropdownMenuItem(value: 'contrast', child: Text('Maximum contrast')),
+          const Text('Theme Mode', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text('System, dark, light, or maximum contrast'),
+          DropdownButton<String>(
+            isExpanded: true,
+            dropdownColor: Theme.of(context).colorScheme.surface,
+            value: _themeMode,
+            items: const [
+              DropdownMenuItem(value: 'system', child: Text('System')),
+              DropdownMenuItem(value: 'dark', child: Text('Dark')),
+              DropdownMenuItem(value: 'light', child: Text('Light')),
+              DropdownMenuItem(value: 'contrast', child: Text('Maximum contrast')),
+            ],
+            onChanged: (val) {
+              if (val != null) {
+                setState(() => _themeMode = val);
+                widget.preferencesService.setThemeModeString(val);
+              }
+            },
+          ),
+          const Divider(height: 32),
+
+          Text('How you use EyeSense', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(
+            'Choosing a profile sets its starting preferences. You can change each option afterwards, and nothing is turned off permanently.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          RadioGroup<AssistanceProfile>(
+            groupValue: widget.preferencesService.assistanceProfile,
+            onChanged: (value) {
+              if (value == null) return;
+              widget.preferencesService.applyProfileDefaults(value);
+            },
+            child: const Column(
+              children: [
+                RadioListTile<AssistanceProfile>(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('I use a screen reader'),
+                  value: AssistanceProfile.screenReader,
+                ),
+                RadioListTile<AssistanceProfile>(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('I have some usable vision'),
+                  value: AssistanceProfile.lowVision,
+                ),
+                RadioListTile<AssistanceProfile>(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('I am sighted and assisting someone'),
+                  value: AssistanceProfile.sightedAssistant,
+                ),
               ],
-              onChanged: (val) {
-                if (val != null) {
-                  setState(() => _themeMode = val);
-                  widget.preferencesService.setThemeModeString(val);
-                }
-              },
             ),
           ),
           const Divider(height: 32),
@@ -119,24 +151,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Language', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Spoken language and response translations'),
-            trailing: DropdownButton<String>(
-              dropdownColor: Theme.of(context).colorScheme.surface,
-              value: _language,
-              items: const [
-                DropdownMenuItem(value: 'en', child: Text('English (Default)')),
-                DropdownMenuItem(value: 'sw', child: Text('Kiswahili')),
-              ],
-              onChanged: (val) {
-                if (val != null) {
-                  setState(() => _language = val);
-                  widget.preferencesService.setLanguage(val);
-                }
-              },
-            ),
+          const Text('Language', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text('Spoken language and response translations'),
+          DropdownButton<String>(
+            isExpanded: true,
+            dropdownColor: Theme.of(context).colorScheme.surface,
+            value: _language,
+            items: const [
+              DropdownMenuItem(value: 'en', child: Text('English (Default)')),
+              DropdownMenuItem(value: 'sw', child: Text('Kiswahili')),
+            ],
+            onChanged: (val) {
+              if (val != null) {
+                setState(() => _language = val);
+                widget.preferencesService.setLanguage(val);
+              }
+            },
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -224,16 +254,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Privacy Policy'),
-            subtitle: Text('Draft ${AppConfig.termsVersion}. Accepted: ${widget.preferencesService.acceptedTermsVersion ?? 'not yet'}'),
+            subtitle: Text('Version ${AppConfig.termsVersion}. Accepted: ${widget.preferencesService.acceptedTermsVersion ?? 'not yet'}'),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const LegalDocumentScreen(title: 'Privacy Policy', assetPath: 'assets/legal/privacy-policy.md'),
+              builder: (_) => LegalDocumentScreen(
+                title: 'Privacy Policy',
+                documentBase: 'assets/legal/privacy-policy',
+                language: _language,
+              ),
             )),
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Terms of Use'),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const LegalDocumentScreen(title: 'Terms of Use', assetPath: 'assets/legal/terms-of-service.md'),
+              builder: (_) => LegalDocumentScreen(
+                title: 'Terms of Use',
+                documentBase: 'assets/legal/terms-of-service',
+                language: _language,
+              ),
             )),
           ),
           ListTile(

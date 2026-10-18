@@ -4,6 +4,7 @@
   "trailingSlash": false,
   "redirects": [
     { "source": "/privacy/history", "destination": "/privacy", "permanent": false },
+    { "source": "/sw/privacy/history", "destination": "/sw/privacy", "permanent": false },
     { "source": "/privacy-policy", "destination": "/privacy", "permanent": true },
     { "source": "/terms-of-service", "destination": "/terms", "permanent": true }
   ],

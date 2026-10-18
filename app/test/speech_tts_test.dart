@@ -1,11 +1,10 @@
+import 'dart:async';
+
 import 'package:eyesense/agents/agent_coordinator.dart';
 import 'package:eyesense/models/app_operation.dart';
 import 'package:eyesense/models/scene_result.dart';
-import 'package:eyesense/services/camera_service.dart';
 import 'package:eyesense/services/credential_service.dart';
 import 'package:eyesense/services/diagnostic_log_service.dart';
-import 'package:eyesense/services/haptic_service.dart';
-import 'package:eyesense/services/ocr_service.dart';
 import 'package:eyesense/services/preferences_service.dart';
 import 'package:eyesense/services/speech_service.dart';
 import 'package:eyesense/services/tts_service.dart';
@@ -13,9 +12,12 @@ import 'package:eyesense/services/vision_api_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'coordinator_test.dart';
+
 class DelayedChunkTtsService extends TtsService {
   final List<String> spokenChunks = [];
   bool wasStopped = false;
+  Completer<void>? hold;
 
   DelayedChunkTtsService(super.prefs);
 
@@ -25,8 +27,8 @@ class DelayedChunkTtsService extends TtsService {
     for (final chunk in chunks) {
       if (wasStopped) break;
       spokenChunks.add(chunk);
-      // Simulate asynchronous playback
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+      final gate = hold;
+      if (gate != null) await gate.future;
     }
   }
 
@@ -137,16 +139,35 @@ void main() {
       speech = FakeOutcomeSpeechService();
 
       coordinator = AgentCoordinator(
-        cameraService: CameraService(),
+        cameraService: FakeCameraService(),
         ttsService: DelayedChunkTtsService(prefs),
         speechService: speech,
-        ocrService: OcrService(),
-        hapticService: HapticService(prefs),
+        ocrService: FakeOcrService(),
+        hapticService: FakeHapticService(prefs),
         preferencesService: prefs,
         credentialService: CredentialService(),
         logService: DiagnosticLogService(prefs),
         visionApi: StubVisionApiService(),
       );
+    });
+
+    test('stop halts speech before the remaining chunks are spoken', () async {
+      final tts = coordinator.ttsService as DelayedChunkTtsService;
+      final sentence = 'This is a clear sentence describing the surroundings. ';
+      final text = sentence * 200;
+      final chunks = TtsService.splitIntoChunks(text);
+      expect(chunks.length, greaterThan(1));
+
+      tts.hold = Completer<void>();
+      final pending = tts.speak(text);
+      await Future<void>.delayed(Duration.zero);
+      expect(tts.spokenChunks, hasLength(1));
+      await tts.stop();
+      tts.hold!.complete();
+      await pending;
+
+      expect(tts.wasStopped, isTrue);
+      expect(tts.spokenChunks, hasLength(1));
     });
 
     test('rejects questions exceeding 300 character limit', () async {
