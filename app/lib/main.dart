@@ -10,15 +10,22 @@ import 'package:eyesense/services/ocr_service.dart';
 import 'package:eyesense/services/preferences_service.dart';
 import 'package:eyesense/services/speech_service.dart';
 import 'package:eyesense/services/tts_service.dart';
+import 'package:eyesense/widgets/eye_sense_mark.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const EyeSenseBootstrapApp());
+  final stored = await SharedPreferences.getInstance();
+  final themeMode = stored.getString('theme_mode') ?? 'system';
+  runApp(EyeSenseBootstrapApp(initialThemeMode: themeMode));
 }
 
 class EyeSenseBootstrapApp extends StatefulWidget {
-  const EyeSenseBootstrapApp({super.key});
+  final String initialThemeMode;
+
+  const EyeSenseBootstrapApp({super.key, this.initialThemeMode = 'system'});
 
   @override
   State<EyeSenseBootstrapApp> createState() => _EyeSenseBootstrapAppState();
@@ -47,6 +54,7 @@ class _EyeSenseBootstrapAppState extends State<EyeSenseBootstrapApp> {
       final logService = DiagnosticLogService(preferencesService);
 
       final cameraService = CameraService();
+      unawaited(cameraService.sweepOrphanedCaptures());
       final ttsService = TtsService(preferencesService);
       final speechService = SpeechService();
       final ocrService = OcrService();
@@ -73,9 +81,10 @@ class _EyeSenseBootstrapAppState extends State<EyeSenseBootstrapApp> {
       debugPrint('EyeSense bootstrap error: $e\n$stack');
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = 'EyeSense could not start. Use Retry startup.';
           _isLoading = false;
         });
+        unawaited(FlutterTts().speak('EyeSense could not start. Use Retry startup.'));
       }
     }
   }
@@ -86,103 +95,57 @@ class _EyeSenseBootstrapAppState extends State<EyeSenseBootstrapApp> {
       return EyeSenseApp(coordinator: _coordinator!);
     }
 
+    final platform = View.of(context).platformDispatcher.platformBrightness;
+    final bootstrapTheme = AppTheme.themeFor(widget.initialThemeMode, platform);
+    final colors = bootstrapTheme.extension<EyeSenseColors>() ?? EyeSenseColors.dark;
     return MaterialApp(
       title: 'EyeSense',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: bootstrapTheme,
       home: Scaffold(
-        backgroundColor: const Color(0xFF0B1630),
+        backgroundColor: colors.background,
         body: SafeArea(
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28.0),
+              padding: const EdgeInsets.symmetric(horizontal: 28),
               child: _error != null
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.warning_amber_rounded,
-                          color: Color(0xFFFFB300),
-                          size: 64,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Initialization Notice',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
+                  ? Semantics(
+                      liveRegion: true,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.warning_amber_rounded, color: colors.concern, size: 48),
+                          const SizedBox(height: 16),
+                          Text('EyeSense could not start', style: bootstrapTheme.textTheme.headlineSmall),
+                          const SizedBox(height: 12),
+                          Text(_error!, textAlign: TextAlign.center, style: bootstrapTheme.textTheme.bodyMedium),
+                          const SizedBox(height: 24),
+                          FilledButton.icon(
+                            onPressed: _bootstrap,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Retry startup'),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _error!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Color(0xFFD5DEF0),
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        ElevatedButton.icon(
-                          onPressed: _bootstrap,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Retry Startup'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF35D6C4),
-                            foregroundColor: const Color(0xFF0B1630),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 28,
-                              vertical: 14,
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     )
                   : Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
-                          width: 96,
-                          height: 96,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF132247),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: const Color(0xFF35D6C4),
-                              width: 3,
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.visibility,
-                            color: Color(0xFF35D6C4),
-                            size: 52,
+                        EyeSenseMark(size: 72, color: colors.accent),
+                        const SizedBox(height: 24),
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: 'Eye', style: TextStyle(color: colors.textPrimary)),
+                              TextSpan(text: 'Sense', style: TextStyle(color: colors.accent)),
+                            ],
+                            style: bootstrapTheme.textTheme.displaySmall,
                           ),
                         ),
                         const SizedBox(height: 24),
-                        const Text(
-                          'EyeSense',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Your world, described.',
-                          style: TextStyle(
-                            color: Color(0xFF35D6C4),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 40),
-                        if (_isLoading)
-                          const CircularProgressIndicator(
-                            color: Color(0xFF35D6C4),
-                          ),
+                        Text('Your world, described.', style: bootstrapTheme.textTheme.bodyMedium),
+                        const SizedBox(height: 48),
+                        if (_isLoading) CircularProgressIndicator(color: colors.accent),
                       ],
                     ),
             ),

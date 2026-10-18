@@ -10,7 +10,7 @@ class DiagnosticLogService {
   final PreferencesService _prefs;
   Directory? _logDir;
 
-  DiagnosticLogService(this._prefs);
+  DiagnosticLogService(this._prefs, {Directory? directory}) : _logDir = directory;
 
   Future<Directory> _getLogDirectory() async {
     if (_logDir != null) return _logDir!;
@@ -86,10 +86,17 @@ class DiagnosticLogService {
 
       // If total exceeds 5 MiB or older than 7 days, delete oldest
       fileList.sort((a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()));
+      // A single current file is never deleted, even when it alone exceeds the ceiling.
+      if (fileList.length <= 1) return;
+
       final cutoff = DateTime.now().subtract(const Duration(days: 7));
+      final newest = fileList.last;
 
       for (final f in fileList) {
-        if (f.lastModifiedSync().isBefore(cutoff) || totalBytes > 5 * 1024 * 1024) {
+        if (identical(f, newest)) continue;
+        final agedOut = f.lastModifiedSync().isBefore(cutoff);
+        final overCeiling = totalBytes > 5 * 1024 * 1024;
+        if (agedOut || overCeiling) {
           final len = await f.length();
           await f.delete();
           totalBytes -= len;
@@ -114,14 +121,18 @@ class DiagnosticLogService {
     }
   }
 
-  Future<void> clearLogs() async {
+  /// Returns false when deletion fails so the screen can say so.
+  Future<bool> clearLogs() async {
     try {
       final dir = await _getLogDirectory();
       final files = await dir.list().where((f) => f is File && f.path.endsWith('.jsonl')).toList();
       for (final f in files) {
         await f.delete();
       }
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> exportLogs() async {

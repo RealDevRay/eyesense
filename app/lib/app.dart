@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:eyesense/agents/agent_coordinator.dart';
 import 'package:eyesense/core/theme/app_theme.dart';
 import 'package:eyesense/features/home/home_screen.dart';
 import 'package:eyesense/features/onboarding/onboarding_screen.dart';
+import 'package:eyesense/features/profile/profile_choice_screen.dart';
 import 'package:flutter/material.dart';
 
 class EyeSenseApp extends StatefulWidget {
@@ -24,32 +27,43 @@ class _EyeSenseAppState extends State<EyeSenseApp> {
 
   ThemeMode _resolveThemeMode() {
     final mode = widget.coordinator.preferencesService.themeModeString;
-    if (mode == 'dark') return ThemeMode.dark;
     if (mode == 'light') return ThemeMode.light;
+    if (mode == 'dark' || mode == 'contrast') return ThemeMode.dark;
     return ThemeMode.system;
   }
 
   @override
   Widget build(BuildContext context) {
+    final prefs = widget.coordinator.preferencesService;
     return ListenableBuilder(
-      listenable: widget.coordinator.preferencesService,
+      listenable: prefs,
       builder: (context, _) {
+        final contrast = prefs.themeModeString == 'contrast';
         return MaterialApp(
           title: 'EyeSense',
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
+          theme: contrast ? AppTheme.maximumContrastTheme : AppTheme.lightTheme,
+          darkTheme: contrast ? AppTheme.maximumContrastTheme : AppTheme.darkTheme,
           themeMode: _resolveThemeMode(),
-          home: _showOnboarding
-              ? OnboardingScreen(
-                  coordinator: widget.coordinator,
-                  onFinish: () {
-                    setState(() {
-                      _showOnboarding = false;
-                    });
-                  },
+          builder: (context, child) {
+            final media = MediaQuery.of(context);
+            final scale = math.max(media.textScaler.scale(1), prefs.preferredTextScale);
+            return MediaQuery(
+              data: media.copyWith(textScaler: TextScaler.linear(scale)),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+          home: !prefs.hasChosenProfile
+              ? ProfileChoiceScreen(
+                  preferences: prefs,
+                  onChosen: () => setState(() {}),
                 )
-              : HomeScreen(coordinator: widget.coordinator),
+              : _showOnboarding
+                  ? OnboardingScreen(
+                      coordinator: widget.coordinator,
+                      onFinish: () => setState(() => _showOnboarding = false),
+                    )
+                  : HomeScreen(coordinator: widget.coordinator),
         );
       },
     );

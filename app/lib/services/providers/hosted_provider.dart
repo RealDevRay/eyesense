@@ -43,6 +43,7 @@ class HostedVisionProvider implements VisionApiService {
     required String base64Jpeg,
     required String language,
     CancelToken? cancelToken,
+    Duration? timeout,
   }) async {
     return _sendRequest(
       {
@@ -55,6 +56,7 @@ class HostedVisionProvider implements VisionApiService {
         },
       },
       cancelToken: cancelToken,
+      timeout: timeout,
     );
   }
 
@@ -65,6 +67,7 @@ class HostedVisionProvider implements VisionApiService {
     required String question,
     required String language,
     CancelToken? cancelToken,
+    Duration? timeout,
   }) async {
     return _sendRequest(
       {
@@ -78,19 +81,25 @@ class HostedVisionProvider implements VisionApiService {
         },
       },
       cancelToken: cancelToken,
+      timeout: timeout,
     );
   }
 
   Future<SceneResult> _sendRequest(
     Map<String, dynamic> body, {
     CancelToken? cancelToken,
+    Duration? timeout,
   }) async {
     try {
       final headers = await _getAuthHeaders();
       final response = await _dio.post(
         '$_baseUrl/v1/vision',
         data: body,
-        options: Options(headers: headers),
+        options: Options(
+          headers: headers,
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
+        ),
         cancelToken: cancelToken,
       );
 

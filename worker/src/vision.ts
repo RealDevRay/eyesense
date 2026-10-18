@@ -1,4 +1,10 @@
 import { enforceWorkerOutputPolicy } from "./output_policy";
+
+export function boundedTimeoutMs(raw: string | undefined): number {
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return 12_000;
+  return Math.min(30_000, Math.max(1_000, Math.floor(parsed)));
+}
 import { SCENE_AGENT_SYSTEM_PROMPT } from "./prompts";
 import { SceneResult, SceneResultSchema, VisionRequest } from "./schema";
 
@@ -13,7 +19,7 @@ export async function processVisionRequest(
   env: VisionEnv
 ): Promise<SceneResult> {
   const model = env.GROQ_VISION_MODEL || "qwen/qwen3.8-27b";
-  const timeoutMs = parseInt(env.UPSTREAM_TIMEOUT_MS || "12000", 10);
+  const timeoutMs = boundedTimeoutMs(env.UPSTREAM_TIMEOUT_MS);
 
   const userPrompt =
     req.mode === "ask" && req.question

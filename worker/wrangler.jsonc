@@ -8,5 +8,19 @@
     "GROQ_VISION_MODEL": "qwen/qwen3.8-27b",
     "UPSTREAM_TIMEOUT_MS": "12000",
     "ENABLE_CLOUD_REQUESTS": "true"
-  }
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "BUDGET",
+        "class_name": "BudgetDurableObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-budget",
+      "new_classes": ["BudgetDurableObject"]
+    }
+  ]
 }

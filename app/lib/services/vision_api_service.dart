@@ -7,6 +7,7 @@ abstract class VisionApiService {
     required String base64Jpeg,
     required String language,
     CancelToken? cancelToken,
+    Duration? timeout,
   });
 
   Future<SceneResult> askQuestion({
@@ -15,5 +16,6 @@ abstract class VisionApiService {
     required String question,
     required String language,
     CancelToken? cancelToken,
+    Duration? timeout,
   });
 }

@@ -25,6 +25,9 @@ class ReadingAgent {
     required this.logService,
   });
 
+  /// Deferred stub. Returns the first three lines prefixed with "Summary:"
+  /// and hardcodes clarity as clear. It is not summarisation and has no
+  /// production call site. Do not describe it as a summary feature.
   Future<ReadingResult> summarise({
     required AgentTask task,
     required String ocrText,

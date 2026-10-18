@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  EyeSense  wordmark only, no mark.
+  Use where the mark already appears nearby, or in tight inline contexts.
+
+  Convert text to outlines before distributing outside the app.
+
+  For light backgrounds, swap:
+    #F7F8F8 -> #14171D
+    #FFC247 -> #8A5A00
+
+  Single-colour variant: set both tspans to the same value.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 176 48" width="176" height="48"
+     role="img" aria-label="EyeSense">
+  <title>EyeSense</title>
+  <text x="0" y="35"
+        font-family="Atkinson Hyperlegible, Atkinson Hyperlegible Next, Inter, Segoe UI, sans-serif"
+        font-size="36" font-weight="700" letter-spacing="-0.18">
+    <tspan fill="#F7F8F8">Eye</tspan><tspan fill="#FFC247">Sense</tspan>
+  </text>
+</svg>

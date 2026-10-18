@@ -25,7 +25,6 @@ class SceneAgent {
     DateTime Function()? nowProvider,
   }) async {
     final startTime = DateTime.now();
-    task.recordCall();
 
     await logService.logEvent(
       requestId: task.requestId,
@@ -35,23 +34,13 @@ class SceneAgent {
     );
 
     try {
-      final SceneResult result;
-      if (question != null && question.trim().isNotEmpty) {
-        result = await visionApi.askQuestion(
-          requestId: task.requestId,
-          base64Jpeg: base64Jpeg,
-          question: question.trim(),
-          language: language,
-          cancelToken: cancelToken,
-        );
-      } else {
-        result = await visionApi.describeScene(
-          requestId: task.requestId,
-          base64Jpeg: base64Jpeg,
-          language: language,
-          cancelToken: cancelToken,
-        );
-      }
+      final result = await _dispatch(
+        task: task,
+        base64Jpeg: base64Jpeg,
+        question: question,
+        language: language,
+        cancelToken: cancelToken,
+      );
 
       // Output policy verification (freshness, generation match, safety bounds)
       final validatedResult = OutputPolicy.validateSceneResult(
@@ -88,5 +77,82 @@ class SceneAgent {
       );
       rethrow;
     }
+  }
+
+  Future<SceneResult> _dispatch({
+    required AgentTask task,
+    required String base64Jpeg,
+    required String? question,
+    required String language,
+    required CancelToken? cancelToken,
+  }) async {
+    _requireBudget(task);
+    task.recordCall();
+    try {
+      return await _send(
+        task: task,
+        base64Jpeg: base64Jpeg,
+        question: question,
+        language: language,
+        cancelToken: cancelToken,
+      );
+    } on AppException catch (error) {
+      // One retry, and only when the first attempt timed out with budget left.
+      final canRetry = error.code == ErrorCode.requestTimeout &&
+          task.canExecuteMoreCalls &&
+          task.remainingTimeBudget > const Duration(seconds: 1);
+      if (!canRetry) rethrow;
+      _requireBudget(task);
+      task.recordCall();
+      return _send(
+        task: task,
+        base64Jpeg: base64Jpeg,
+        question: question,
+        language: language,
+        cancelToken: cancelToken,
+      );
+    }
+  }
+
+  void _requireBudget(AgentTask task) {
+    if (!task.canExecuteMoreCalls) {
+      throw const AppException(
+        code: ErrorCode.callBudgetExceeded,
+        userMessage: 'This request used its allowed analysis attempts. Take the picture again.',
+      );
+    }
+    if (task.remainingTimeBudget <= Duration.zero) {
+      throw const AppException(
+        code: ErrorCode.requestTimeout,
+        userMessage: 'There is no time left for this request. Take the picture again.',
+      );
+    }
+  }
+
+  Future<SceneResult> _send({
+    required AgentTask task,
+    required String base64Jpeg,
+    required String? question,
+    required String language,
+    required CancelToken? cancelToken,
+  }) {
+    final timeout = task.remainingTimeBudget;
+    if (question != null && question.trim().isNotEmpty) {
+      return visionApi.askQuestion(
+        requestId: task.requestId,
+        base64Jpeg: base64Jpeg,
+        question: question.trim(),
+        language: language,
+        cancelToken: cancelToken,
+        timeout: timeout,
+      );
+    }
+    return visionApi.describeScene(
+      requestId: task.requestId,
+      base64Jpeg: base64Jpeg,
+      language: language,
+      cancelToken: cancelToken,
+      timeout: timeout,
+    );
   }
 }

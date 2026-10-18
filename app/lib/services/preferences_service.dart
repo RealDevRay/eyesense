@@ -1,7 +1,10 @@
 import 'package:eyesense/core/config/app_config.dart';
+import 'package:eyesense/core/speech/speech_rate.dart';
 import 'package:eyesense/models/app_operation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+enum AssistanceProfile { screenReader, lowVision, sightedAssistant }
 
 class PreferencesService extends ChangeNotifier {
   static const _keySpeechRate = 'speech_rate';
@@ -16,6 +19,15 @@ class PreferencesService extends ChangeNotifier {
   static const _keyCompletedOnboarding = 'completed_onboarding';
   static const _keyOnboardingStep = 'onboarding_step';
   static const _keyApiBaseUrl = 'api_base_url';
+  static const _keyProfile = 'assistance_profile';
+  static const _keyProfileChosen = 'assistance_profile_chosen';
+  static const _keyEarcons = 'earcons_enabled';
+  static const _keyAiming = 'aiming_guidance';
+  static const _keyAppMode = 'app_mode';
+  static const _keyTermsVersion = 'terms_version_accepted';
+  static const _keyTermsAcceptedAt = 'terms_accepted_at';
+  static const _keyLaunchOrientationCount = 'launch_orientation_count';
+  static const _keyPreferredTextScale = 'preferred_text_scale';
 
   final SharedPreferences _prefs;
 
@@ -50,7 +62,10 @@ class PreferencesService extends ChangeNotifier {
     notifyListeners();
   }
 
-  double get speechRate => _prefs.getDouble(_keySpeechRate) ?? 1.0;
+  double get speechRate {
+    final stored = _prefs.getDouble(_keySpeechRate) ?? 1.0;
+    return stored.clamp(SpeechRateScale.minProduct, SpeechRateScale.maxProduct).toDouble();
+  }
   Future<void> setSpeechRate(double rate) async {
     await _prefs.setDouble(_keySpeechRate, rate);
     notifyListeners();
@@ -83,6 +98,10 @@ class PreferencesService extends ChangeNotifier {
   bool get cloudConsentGranted => _prefs.getBool(_keyCloudConsent) ?? false;
   Future<void> setCloudConsentGranted(bool val) async {
     await _prefs.setBool(_keyCloudConsent, val);
+    if (val) {
+      await _prefs.setString(_keyTermsVersion, AppConfig.termsVersion);
+      await _prefs.setString(_keyTermsAcceptedAt, DateTime.now().toUtc().toIso8601String());
+    }
     notifyListeners();
   }
 
@@ -101,5 +120,90 @@ class PreferencesService extends ChangeNotifier {
   Future<void> setAwarenessEnabled(bool val) async {
     await _prefs.setBool(_keyAwarenessEnabled, val);
     notifyListeners();
+  }
+
+  bool get hasChosenProfile => _prefs.getBool(_keyProfileChosen) ?? false;
+
+  AssistanceProfile get assistanceProfile {
+    switch (_prefs.getString(_keyProfile)) {
+      case 'lowVision':
+        return AssistanceProfile.lowVision;
+      case 'sightedAssistant':
+        return AssistanceProfile.sightedAssistant;
+      case 'screenReader':
+        return AssistanceProfile.screenReader;
+      default:
+        return AssistanceProfile.screenReader;
+    }
+  }
+
+  /// Applies defaults once. Later changes in Settings are left alone.
+  Future<void> applyProfileDefaults(AssistanceProfile profile) async {
+    await _prefs.setString(_keyProfile, profile.name);
+    await _prefs.setBool(_keyProfileChosen, true);
+    switch (profile) {
+      case AssistanceProfile.screenReader:
+        await _prefs.setBool(_keyAutoRead, true);
+        await _prefs.setBool(_keyEarcons, true);
+        await _prefs.setBool(_keyAiming, true);
+        await _prefs.setDouble(_keyPreferredTextScale, 1.0);
+        await _prefs.setString(_keyThemeMode, _prefs.getString(_keyThemeMode) ?? 'system');
+      case AssistanceProfile.lowVision:
+        await _prefs.setBool(_keyAutoRead, true);
+        await _prefs.setBool(_keyEarcons, false);
+        await _prefs.setBool(_keyAiming, false);
+        await _prefs.setDouble(_keyPreferredTextScale, 1.4);
+        await _prefs.setString(_keyThemeMode, 'contrast');
+      case AssistanceProfile.sightedAssistant:
+        await _prefs.setBool(_keyAutoRead, false);
+        await _prefs.setBool(_keyEarcons, false);
+        await _prefs.setBool(_keyAiming, false);
+        await _prefs.setDouble(_keyPreferredTextScale, 1.0);
+    }
+    notifyListeners();
+  }
+
+  bool get earconsEnabled => _prefs.getBool(_keyEarcons) ?? true;
+  Future<void> setEarconsEnabled(bool val) async {
+    await _prefs.setBool(_keyEarcons, val);
+    notifyListeners();
+  }
+
+  bool get aimingGuidance => _prefs.getBool(_keyAiming) ?? false;
+  Future<void> setAimingGuidance(bool val) async {
+    await _prefs.setBool(_keyAiming, val);
+    notifyListeners();
+  }
+
+  double get preferredTextScale => _prefs.getDouble(_keyPreferredTextScale) ?? 1.0;
+
+  AppMode get appMode {
+    switch (_prefs.getString(_keyAppMode)) {
+      case 'readText':
+        return AppMode.readText;
+      case 'ask':
+        return AppMode.ask;
+      default:
+        return AppMode.describe;
+    }
+  }
+
+  Future<void> setAppMode(AppMode mode) async {
+    await _prefs.setString(_keyAppMode, mode.name);
+    notifyListeners();
+  }
+
+  String? get acceptedTermsVersion => _prefs.getString(_keyTermsVersion);
+  String? get acceptedTermsAt => _prefs.getString(_keyTermsAcceptedAt);
+
+  Future<void> recordTermsAcceptance() async {
+    await _prefs.setString(_keyTermsVersion, AppConfig.termsVersion);
+    await _prefs.setString(_keyTermsAcceptedAt, DateTime.now().toUtc().toIso8601String());
+    notifyListeners();
+  }
+
+  int get launchOrientationCount => _prefs.getInt(_keyLaunchOrientationCount) ?? 0;
+  Future<void> incrementLaunchOrientationCount() async {
+    await _prefs.setInt(_keyLaunchOrientationCount, launchOrientationCount + 1);
   }
 }

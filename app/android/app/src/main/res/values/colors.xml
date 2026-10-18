@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="splash_background">#0A0C10</color>
+    <!-- Adaptive icon background. Flat ink: the system applies its own mask,
+         so any detail or gradient here crops unpredictably across OEMs. -->
+    <color name="icon_background">#0A0C10</color>
+</resources>

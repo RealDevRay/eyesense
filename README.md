@@ -21,7 +21,9 @@ EyeSense provides fast, accessible, and privacy-centric visual assistance throug
 
 ## 2. Bounded Multi-Agent Architecture
 
-EyeSense decomposes visual assistance into four specialized, bounded agent roles coordinated by a master orchestrator (`app/lib/agents/`):
+What actually runs today is `AgentCoordinator`, `SceneAgent` for Describe and Ask, on-device OCR for Read Text, and `ConversationAgent.matchIntent` for voice commands. `ReadingAgent.summarise` is a deferred stub: it returns the first three lines prefixed with "Summary:" and hardcodes `clarityAssessment: 'clear'`. It has no production call site and is not summarisation. `AppMode.awareness` is not a separate workflow.
+
+EyeSense decomposes the live paths like this:
 
 ```
                            +----------------------+
@@ -39,9 +41,9 @@ EyeSense decomposes visual assistance into four specialized, bounded agent roles
 ```
 
 - **`AgentCoordinator` (Orchestrator):** Manages the central state machine (`idle`, `capturing`, `listening`, `processingLocal`, `processingCloud`, `speaking`, `error`), enforces operation serialization, handles physical haptics/TTS, and controls monotonic generation invalidation.
-- **`SceneAgent` (Vision & Visual Q&A):** Handles visual reasoning tasks with strict 15-second freshness checks and output policy validation.
-- **`ReadingAgent` (Local Text/OCR):** Processes on-device ML Kit text recognition without network dependencies.
-- **`ConversationAgent` (Intent & Spoken Commands):** Maps voice utterances (*"What is this?"*, *"Soma maandishi"*, *"Stop"*, *"Repeat"*) to deterministic agent workflows.
+- **`SceneAgent` (Vision & Visual Q&A):** Handles visual reasoning. The client request timeout is 10 seconds. A result is discarded as stale only after 25 seconds from capture, and only before it is spoken.
+- **Read Text:** On-device ML Kit. It does not use `ReadingAgent`. Stop discards a late result; ML Kit itself cannot abort `processImage`.
+- **`ConversationAgent` (Intent & Spoken Commands):** Token-matches voice utterances such as "describe the scene", "soma maandishi", "stop" and "repeat". Anything that is not a command or a question is clarified locally and is not sent to the cloud.
 - **`OutputPolicy` (Safety Supervisor):** Enforces strict safety invariants on both device and Cloudflare Worker. Prohibited road-crossing guidance, clear-path assertions, and collision claims are intercepted and replaced with conservative limitation statements in English and Kiswahili.
 
 ---
@@ -57,9 +59,9 @@ EyeSense supports two AI connection modes with live runtime switching:
 
 ## 4. Modern Material 3 UI/UX & Accessibility
 
-- **Material 3 Theming:** Full dynamic support for High-Contrast Dark Navy (`#0B1630`) and Clean Light (`#F7F9FC`) themes, compliant with WCAG 2.1 AA/AAA contrast ratios.
-- **TalkBack Optimized:** Semantics labels, button hints, and reading order specifically structured for non-visual accessibility. No duplicate announcements or trapped focus.
-- **200% Font Scale Support:** All action buttons utilize `ConstrainedBox(minHeight: 72)` and multi-line wrapping (`softWrap: true`) without text clipping or single-line ellipsis truncation.
+- **Material 3 Theming:** Dark, light, system, and a maximum-contrast theme (black, white, and `#FFD400`). Body text uses Atkinson Hyperlegible. Contrast ratios are design targets and still need a recorded measurement pass.
+- **TalkBack:** Each home action is one semantic button with a label and hint. Status is a live region. App speech is a single TTS queue. This has widget coverage and still needs a pass with TalkBack on a device.
+- **200% Font Scale:** Primary actions use a 72 dp minimum height and wrap. A widget test pumps every changed screen goal at 320 logical pixels and text scale 2.0 for Home. Other screens still need that same pass on a device.
 - **Finite Minimum Touch Targets:** Global touch targets conform to standard 48x48 dp minimums, avoiding unbounded width layout exceptions.
 - **Responsive Layouts:** Action rows utilize `Wrap` widgets to adapt naturally to diverse screen widths, foldables, and large accessibility display scaling.
 
@@ -70,9 +72,9 @@ EyeSense supports two AI connection modes with live runtime switching:
 | Attribute | Specification | Notes |
 | :--- | :--- | :--- |
 | **Package Name** | `com.devray.eyesense` | Unique Android application identifier |
-| **Minimum SDK** | API 21 (Android 5.0 Lollipop) | Compatible with >99% of active Android devices worldwide |
-| **Target SDK** | API 34+ (Android 14) | Fully compliant with Google Play target API requirements |
-| **Supported Architectures** | `arm64-v8a`, `armeabi-v7a`, `x86_64` | Native 64-bit compliance for modern phones + 32-bit legacy fallback + emulator/Chromebook support |
+| **Minimum SDK** | API 24 (Android 7.0) | Pinned in `android/app/build.gradle.kts`. This is Flutter's current default and the `flutter_tts` floor. It is not API 21. |
+| **Target SDK** | API 36 | Pinned next to `compileSdk` 36 and NDK `28.2.13676358` |
+| **Supported Architectures** | Whatever the Flutter CLI selects for the build | The project does not set `abiFilters`. `flutter build apk --split-per-abi` is what produces per-ABI files. |
 | **Package Format** | Android App Bundle (`.aab`) & Universal / Split APKs | Google Play Store publication ready |
 | **Backup Protection** | `android:allowBackup="false"` | Prevents sensitive credentials from syncing to cloud backups |
 | **Network Security** | Scoped `network_security_config.xml` | Enforces HTTPS in release; limits cleartext strictly to local loopback/emulator testing |
@@ -161,7 +163,7 @@ flutter build apk --release --split-per-abi
 
 1. **Consent-Gated Cloud Analysis:** Describe Scene and Ask Question require explicit user opt-in consent. Read Text operates 100% locally on-device without consent, API keys, or internet connectivity.
 2. **Prohibited Safety Guidance:** Road crossing, clear-path assertions, and collision guarantees are scrubbed and replaced with conservative safety limitations in English and Kiswahili.
-3. **No Secret Leakage:** Developer Groq keys exist strictly as server-side Worker secrets. Personal BYOK keys remain encrypted on-device.
+3. **Hosted access token:** The app binary does not contain a demo bearer token. Hosted mode fails closed until a token is saved in secure storage. `--dart-define=HOSTED_ACCESS_TOKEN=...` is for internal builds only and those artifacts must not be distributed. A token previously committed in source is public and must be rotated with `wrangler secret put DEMO_ACCESS_TOKEN` before any hosted use. Groq keys stay as Worker secrets. Personal BYOK keys stay in encrypted storage. Per-device credentials are not implemented yet.
 4. **Android Backup Protection:** `android:allowBackup="false"` in AndroidManifest prevents sensitive credentials from syncing to Google Cloud backups.
 5. **Live Provider Synchronization:** Switching between Hosted and BYOK modes or updating Worker endpoints takes effect live in runtime without an app restart.
 6. **Opt-in Metadata Diagnostics:** Local technical logging (`eyesense-*.jsonl`) is strictly opt-in and metadata-only (operation durations, error codes, token counts). Zero camera images, audio recordings, or question text are retained.

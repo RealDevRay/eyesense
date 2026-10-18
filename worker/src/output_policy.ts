@@ -46,36 +46,40 @@ export function containsProhibitedSafetyGuidance(text: string): boolean {
 }
 
 export function enforceWorkerOutputPolicy(result: SceneResult, language = "en"): SceneResult {
+  const isSwahili = language === "sw";
+  const limitationSummary = isSwahili
+    ? "Picha inaonekana. EyeSense haiwezi kuthibitisha njia salama au kutoa maelekezo ya kuvuka. Tafadhali tumia msaada wako wa kawaida wa uhamaji."
+    : "Scene detected. EyeSense cannot confirm navigation safety or crossing decisions. Please rely on your mobility aids and physical orientation.";
+  const limitationAnswer = isSwahili
+    ? "EyeSense haiwezi kuamua usalama wa njia au kuvuka. Tafadhali tegemea vifaa vyako vya uhamaji."
+    : "EyeSense cannot determine path safety or crossing decisions. Please rely on your mobility aids.";
+  const limitationNote = isSwahili
+    ? "Tahadhari ya usalama: Maelekezo ya kutembea au kuvuka hayawezi kutolewa kutoka kwa picha."
+    : "Safety limitation: Walking or crossing guidance cannot be provided from images.";
+  const unspecified = isSwahili ? "haijabainishwa" : "unspecified";
+
   const summaryViolates = containsProhibitedSafetyGuidance(result.summary);
   const answerViolates = result.answer ? containsProhibitedSafetyGuidance(result.answer) : false;
   const concernViolates = result.concernDescription
     ? containsProhibitedSafetyGuidance(result.concernDescription)
     : false;
+  const uncertaintyViolates = result.uncertainty ? containsProhibitedSafetyGuidance(result.uncertainty) : false;
+  const objects = result.objects.map((object) =>
+    containsProhibitedSafetyGuidance(object) ? unspecified : object,
+  );
+  const objectsChanged = objects.some((object, index) => object !== result.objects[index]);
 
-  if (summaryViolates || answerViolates || concernViolates) {
-    const isSwahili = language === "sw";
-    const limitationSummary = isSwahili
-      ? "Picha inaonekana. EyeSense haiwezi kuthibitisha njia salama au kutoa maelekezo ya kuvuka. Tafadhali tumia msaada wako wa kawaida wa uhamaji."
-      : "Scene detected. EyeSense cannot confirm navigation safety or crossing decisions. Please rely on your mobility aids and physical orientation.";
-
-    const limitationAnswer = result.answer
-      ? isSwahili
-        ? "EyeSense haiwezi kuamua usalama wa njia au kuvuka. Tafadhali tegemea vifaa vyako vya uhamaji."
-        : "EyeSense cannot determine path safety or crossing decisions. Please rely on your mobility aids."
-      : null;
-
-    const limitationConcern = isSwahili
-      ? "Tahadhari ya usalama: Maelekezo ya kutembea au kuvuka hayawezi kutolewa kutoka kwa picha."
-      : "Safety limitation: Walking or crossing guidance cannot be provided from images.";
-
-    return {
-      ...result,
-      summary: summaryViolates ? limitationSummary : result.summary,
-      answer: answerViolates ? limitationAnswer : result.answer,
-      possibleConcern: true,
-      concernDescription: limitationConcern,
-    };
+  if (!summaryViolates && !answerViolates && !concernViolates && !uncertaintyViolates && !objectsChanged) {
+    return result;
   }
 
-  return result;
+  return {
+    ...result,
+    summary: summaryViolates ? limitationSummary : result.summary,
+    answer: answerViolates ? limitationAnswer : result.answer,
+    concernDescription: concernViolates ? limitationNote : result.concernDescription,
+    uncertainty: uncertaintyViolates ? limitationNote : result.uncertainty,
+    objects,
+    possibleConcern: result.possibleConcern || concernViolates,
+  };
 }

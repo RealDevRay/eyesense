@@ -38,6 +38,9 @@ jobs:
       - name: Run Flutter Tests
         run: flutter test --no-pub
 
+      - name: Assemble debug APK
+        run: flutter build apk --debug --no-pub
+
   worker-checks:
     name: Worker Typecheck & Test
     runs-on: ubuntu-latest

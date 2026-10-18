@@ -60,6 +60,7 @@ class GroqDirectVisionProvider implements VisionApiService {
     required String base64Jpeg,
     required String language,
     CancelToken? cancelToken,
+    Duration? timeout,
   }) async {
     final userPrompt = 'Action: Describe Scene\nTarget Language: $language\nPlease provide a concise scene description and note any potential concerns.';
     return _sendToGroq(
@@ -68,6 +69,7 @@ class GroqDirectVisionProvider implements VisionApiService {
       language: language,
       isAskMode: false,
       cancelToken: cancelToken,
+      timeout: timeout,
     );
   }
 
@@ -78,6 +80,7 @@ class GroqDirectVisionProvider implements VisionApiService {
     required String question,
     required String language,
     CancelToken? cancelToken,
+    Duration? timeout,
   }) async {
     final userPrompt = 'Visual Question: $question\nTarget Language: $language\nPlease answer the question based only on the image.';
     return _sendToGroq(
@@ -86,6 +89,7 @@ class GroqDirectVisionProvider implements VisionApiService {
       language: language,
       isAskMode: true,
       cancelToken: cancelToken,
+      timeout: timeout,
     );
   }
 
@@ -95,6 +99,7 @@ class GroqDirectVisionProvider implements VisionApiService {
     required String language,
     required bool isAskMode,
     CancelToken? cancelToken,
+    Duration? timeout,
   }) async {
     final apiKey = await _getApiKey();
 
@@ -142,6 +147,8 @@ You must return a JSON object with this exact structure:
             'Authorization': 'Bearer $apiKey',
             'Content-Type': 'application/json',
           },
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
         ),
         cancelToken: cancelToken,
       );

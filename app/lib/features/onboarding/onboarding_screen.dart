@@ -1,5 +1,6 @@
 import 'package:eyesense/agents/agent_coordinator.dart';
 import 'package:eyesense/core/theme/app_theme.dart';
+import 'package:eyesense/services/camera_service.dart';
 import 'package:eyesense/widgets/accessible_action_button.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -63,9 +64,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Future<void> _requestCameraPermissionAndPractice() async {
     final status = await Permission.camera.request();
     if (status.isGranted) {
+      CapturedImageData? captured;
       try {
         await widget.coordinator.cameraService.initialize();
-        await widget.coordinator.cameraService.captureAndCompress();
+        captured = await widget.coordinator.cameraService.captureAndCompress();
         setState(() {
           _practiceCaptureSuccess = true;
         });
@@ -76,6 +78,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         widget.coordinator.speechFeedbackCoordinator.speakResult(
           'Camera capture test failed. Please try again.',
         );
+      } finally {
+        await widget.coordinator.cameraService.deleteTemporaryCapture(captured?.file);
       }
     } else {
       widget.coordinator.speechFeedbackCoordinator.speakResult(
@@ -138,29 +142,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               style: theme.textTheme.bodyLarge,
             ),
             const SizedBox(height: 12),
-            RadioListTile<String>(
-              title: const Text('English (Default)'),
-              value: 'en',
+            RadioGroup<String>(
               groupValue: widget.coordinator.preferencesService.language,
               onChanged: (val) {
-                if (val != null) {
-                  setState(() {});
-                  widget.coordinator.preferencesService.setLanguage(val);
-                  widget.coordinator.speechFeedbackCoordinator.speakResult('Language set to English.');
-                }
+                if (val == null) return;
+                setState(() {});
+                widget.coordinator.preferencesService.setLanguage(val);
+                widget.coordinator.speechFeedbackCoordinator.speakResult(
+                  val == 'sw' ? 'Lugha imewekwa kuwa Kiswahili.' : 'Language set to English.',
+                );
               },
-            ),
-            RadioListTile<String>(
-              title: const Text('Kiswahili'),
-              value: 'sw',
-              groupValue: widget.coordinator.preferencesService.language,
-              onChanged: (val) {
-                if (val != null) {
-                  setState(() {});
-                  widget.coordinator.preferencesService.setLanguage(val);
-                  widget.coordinator.speechFeedbackCoordinator.speakResult('Lugha imewekwa kuwa Kiswahili.');
-                }
-              },
+              child: const Column(
+                children: [
+                  RadioListTile<String>(
+                    title: Text('English (Default)'),
+                    value: 'en',
+                  ),
+                  RadioListTile<String>(
+                    title: Text('Kiswahili'),
+                    value: 'sw',
+                  ),
+                ],
+              ),
             ),
           ],
         );
@@ -218,11 +221,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
             if (_practiceCaptureSuccess) ...[
               const SizedBox(height: 16),
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.check_circle, color: Colors.green, size: 24),
-                  SizedBox(width: 8),
-                  Text('Camera tested and ready!', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Icon(
+                    Icons.check_circle,
+                    color: context.eyeColors.success,
+                    size: AppTheme.iconStandard,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Camera tested and ready!', style: TextStyle(fontWeight: FontWeight.bold)),
                 ],
               ),
             ],

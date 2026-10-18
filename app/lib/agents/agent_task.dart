@@ -1,3 +1,4 @@
+import 'package:eyesense/core/config/app_config.dart';
 import 'package:eyesense/models/app_operation.dart';
 
 enum AgentRole {
@@ -14,6 +15,8 @@ class AgentTask {
   final Duration timeout;
   final int maxCalls;
   final DateTime captureTimestamp;
+  final Stopwatch _elapsedClock;
+  final Duration Function()? elapsedOverride;
   int executedCalls;
 
   AgentTask({
@@ -21,11 +24,16 @@ class AgentTask {
     required this.generation,
     required this.role,
     required this.providerMode,
-    this.timeout = const Duration(seconds: 15),
-    this.maxCalls = 2,
+    Duration? timeout,
+    int? maxCalls,
     DateTime? captureTimestamp,
     this.executedCalls = 0,
-  }) : captureTimestamp = captureTimestamp ?? DateTime.now();
+    Stopwatch? elapsedClock,
+    this.elapsedOverride,
+  })  : timeout = timeout ?? AppConfig.clientTimeout,
+        maxCalls = maxCalls ?? AppConfig.maxModelCallsPerOperation,
+        captureTimestamp = captureTimestamp ?? DateTime.now(),
+        _elapsedClock = elapsedClock ?? (Stopwatch()..start());
 
   bool get canExecuteMoreCalls => executedCalls < maxCalls;
 
@@ -33,8 +41,11 @@ class AgentTask {
     executedCalls++;
   }
 
+  /// Monotonic time since the task started. Wall-clock jumps do not shrink
+  /// or extend the request deadline. Tests inject [elapsedOverride].
+  Duration get elapsed => elapsedOverride?.call() ?? _elapsedClock.elapsed;
+
   Duration get remainingTimeBudget {
-    final elapsed = DateTime.now().difference(captureTimestamp);
     final remaining = timeout - elapsed;
     return remaining.isNegative ? Duration.zero : remaining;
   }

@@ -23,75 +23,82 @@ class AccessibleActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+    final colors = context.eyeColors;
+    final enabled = onPressed != null && !isLoading;
 
-    final Color backgroundColor;
-    final Color foregroundColor;
-
+    final Color background;
+    final Color foreground;
     if (isDestructive) {
-      backgroundColor = colorScheme.error;
-      foregroundColor = colorScheme.onError;
+      background = colors.error;
+      foreground = colors.background;
     } else if (isSecondary) {
-      backgroundColor = colorScheme.surface;
-      foregroundColor = colorScheme.onSurface;
+      background = colors.surfaceRaised;
+      foreground = colors.textPrimary;
     } else {
-      backgroundColor = colorScheme.primary;
-      foregroundColor = colorScheme.onPrimary;
+      background = colors.accent;
+      foreground = colors.onAccent;
     }
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(
-        minHeight: AppTheme.primaryButtonHeight,
-        minWidth: double.infinity,
-      ),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor,
-          foregroundColor: foregroundColor,
-          elevation: isSecondary ? 1 : 3,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          side: isSecondary
-              ? BorderSide(
-                  color: isDark
-                      ? AppTheme.darkSecondaryText.withOpacity(0.3)
-                      : AppTheme.lightSecondaryText.withOpacity(0.3),
-                  width: 2,
-                )
-              : BorderSide.none,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: label,
+      hint: semanticHint,
+      child: ExcludeSemantics(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minHeight: AppTheme.primaryButtonHeight,
+            minWidth: double.infinity,
+          ),
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: background,
+              foregroundColor: foreground,
+              disabledBackgroundColor: colors.surfaceRaised,
+              disabledForegroundColor: colors.textTertiary,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                side: BorderSide(
+                  color: isDestructive ? colors.error : colors.border,
+                  width: isLoading ? 2 : 1,
+                ),
+              ),
+            ),
+            onPressed: isLoading ? null : onPressed,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (isLoading)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: SizedBox(
+                      width: AppTheme.iconStandard,
+                      height: AppTheme.iconStandard,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: foreground,
+                      ),
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Icon(icon, size: AppTheme.iconPrimary, color: foreground),
+                  ),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: foreground),
+                    softWrap: true,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        onPressed: isLoading ? null : onPressed,
-        child: isLoading
-            ? SizedBox(
-                width: 30,
-                height: 30,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  color: foregroundColor,
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 28, color: foregroundColor),
-                  const SizedBox(width: 14),
-                  Flexible(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: foregroundColor,
-                      ),
-                      softWrap: true,
-                    ),
-                  ),
-                ],
-              ),
       ),
     );
   }

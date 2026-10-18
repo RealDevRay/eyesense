@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import worker, { budgetState } from "../src/index";
+import worker from "../src/index";
+import { memoryBudget, previewCharge, resetMemoryBudget, secondsUntilUtcMidnight, utcDayKey } from "../src/budget";
 import { enforceWorkerOutputPolicy } from "../src/output_policy";
 import { SceneResult } from "../src/schema";
+import { boundedTimeoutMs } from "../src/vision";
 
 const mockEnv = {
   GROQ_API_KEY: "test-api-key",
@@ -12,16 +14,13 @@ const mockEnv = {
 };
 
 describe("EyeSense Cloudflare Worker", () => {
-  it("GET /health returns 200 with service metadata and ready status", async () => {
+  it("GET /health returns only a status", async () => {
     const req = new Request("https://api.eyesense.dev/health", { method: "GET" });
     const res = await worker.fetch(req, mockEnv);
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as any;
-    expect(body.status).toBe("ok");
-    expect(body.ready).toBe(true);
-    expect(body.service).toBe("eyesense-api");
-    expect(body.cloudEnabled).toBe(true);
+    expect(body).toEqual({ status: "ok" });
   });
 
   it("POST /v1/vision fails with 401 when Authorization header is missing", async () => {
@@ -188,8 +187,8 @@ describe("EyeSense Cloudflare Worker", () => {
     const safeResult = enforceWorkerOutputPolicy(unsafeEnglish, "en");
     expect(safeResult.summary).toContain("EyeSense cannot confirm navigation safety or crossing decisions");
     expect(safeResult.answer).toContain("EyeSense cannot determine path safety or crossing decisions");
-    expect(safeResult.possibleConcern).toBe(true);
-    expect(safeResult.concernDescription).toContain("Safety limitation");
+    expect(safeResult.possibleConcern).toBe(false);
+    expect(safeResult.concernDescription).toBeNull();
 
     // Swahili limitation test
     const unsafeSwahili: SceneResult = {
@@ -206,13 +205,33 @@ describe("EyeSense Cloudflare Worker", () => {
     const safeResultSw = enforceWorkerOutputPolicy(unsafeSwahili, "sw");
     expect(safeResultSw.summary).toContain("haiwezi kuthibitisha njia salama");
     expect(safeResultSw.answer).toContain("haiwezi kuamua usalama wa njia au kuvuka");
-    expect(safeResultSw.possibleConcern).toBe(true);
+    expect(safeResultSw.possibleConcern).toBe(false);
+    expect(safeResultSw.concernDescription).toBeNull();
   });
 
-  it("enforces daily budget limits and returns 503 with Retry-After header", async () => {
-    // Temporarily saturate daily count
-    const originalCount = budgetState.dailyCount;
-    budgetState.dailyCount = 1000;
+  it("replaces only the fields that violate the output policy", () => {
+    const mixed: SceneResult = {
+      summary: "A doorway is ahead.",
+      answer: "It is safe to cross.",
+      possibleConcern: true,
+      concernDescription: "A box blocks part of the doorway.",
+      direction: "centre",
+      objects: ["door", "safe to cross"],
+      imageQuality: "usable",
+      uncertainty: "The path is clear.",
+    };
+    const safe = enforceWorkerOutputPolicy(mixed, "en");
+    expect(safe.summary).toBe("A doorway is ahead.");
+    expect(safe.concernDescription).toBe("A box blocks part of the doorway.");
+    expect(safe.answer).toContain("cannot determine path safety");
+    expect(safe.objects).toEqual(["door", "unspecified"]);
+    expect(safe.uncertainty).toContain("Safety limitation");
+  });
+
+  it("enforces daily budget limits and returns 503 with Retry-After until UTC midnight", async () => {
+    resetMemoryBudget();
+    memoryBudget.snapshot.dailyCount = 1000;
+    memoryBudget.snapshot.dailyKey = utcDayKey(Date.now());
 
     const req = new Request("https://api.eyesense.dev/v1/vision", {
       method: "POST",
@@ -234,9 +253,79 @@ describe("EyeSense Cloudflare Worker", () => {
     expect(res.status).toBe(503);
     const body = (await res.json()) as any;
     expect(body.error.code).toBe("DAILY_BUDGET_EXHAUSTED");
-    expect(res.headers.get("Retry-After")).toBe("3600");
+    expect(res.headers.get("Retry-After")).toBe(String(secondsUntilUtcMidnight(Date.now())));
+    resetMemoryBudget();
+  });
 
-    // Restore count
-    budgetState.dailyCount = originalCount;
+  it("resets a daily budget on the next UTC date, including the same day-of-month", () => {
+    const january = Date.parse("2026-01-15T12:00:00Z");
+    const february = Date.parse("2026-02-15T00:30:00Z");
+    const exhausted = previewCharge(
+      { concurrent: 0, dailyCount: 1000, dailyKey: "2026-01-15", minutes: {}, preparse: {} },
+      "client",
+      january,
+    );
+    expect(exhausted.decision.allowed).toBe(false);
+    expect(exhausted.decision.retryAfter).toBe(secondsUntilUtcMidnight(january));
+    expect(exhausted.decision.retryAfter).not.toBe(3600);
+
+    const reset = previewCharge(exhausted.state, "client", february);
+    expect(reset.decision.allowed).toBe(true);
+    expect(reset.state.dailyKey).toBe("2026-02-15");
+    expect(reset.state.dailyCount).toBe(1);
+  });
+
+  it("does not let two reservations from the same snapshot both succeed", async () => {
+    const start = { concurrent: 9, dailyCount: 0, dailyKey: utcDayKey(Date.now()), minutes: {}, preparse: {} };
+    const first = previewCharge(start, "a", Date.now());
+    const second = previewCharge(start, "b", Date.now());
+    expect(first.decision.allowed && second.decision.allowed).toBe(true);
+
+    resetMemoryBudget();
+    memoryBudget.snapshot.concurrent = 9;
+    const [left, right] = await Promise.all([
+      import("../src/budget").then((budget) => budget.memoryExclusive(() => memoryBudget.charge("a"))),
+      import("../src/budget").then((budget) => budget.memoryExclusive(() => memoryBudget.charge("b"))),
+    ]);
+    expect([left.allowed, right.allowed].filter(Boolean)).toHaveLength(1);
+    expect(memoryBudget.snapshot.concurrent).toBe(10);
+    resetMemoryBudget();
+  });
+
+  it("does not charge the daily budget for a malformed authenticated request", async () => {
+    resetMemoryBudget();
+    const req = new Request("https://api.eyesense.dev/v1/vision", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer valid-secret-token",
+      },
+      body: JSON.stringify({ requestId: "not-a-uuid" }),
+    });
+    const res = await worker.fetch(req, mockEnv);
+    expect(res.status).toBe(400);
+    expect(memoryBudget.snapshot.dailyCount).toBe(0);
+    expect(memoryBudget.snapshot.preparse.default_client.count).toBe(1);
+  });
+
+  it("rejects a non-numeric Content-Length", async () => {
+    const req = new Request("https://api.eyesense.dev/v1/vision", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer valid-secret-token",
+        "Content-Length": "nope",
+      },
+      body: JSON.stringify({}),
+    });
+    const res = await worker.fetch(req, mockEnv);
+    expect(res.status).toBe(400);
+  });
+
+  it("bounds a non-numeric upstream timeout", () => {
+    expect(boundedTimeoutMs(undefined)).toBe(12000);
+    expect(boundedTimeoutMs("not-a-number")).toBe(12000);
+    expect(boundedTimeoutMs("500")).toBe(1000);
+    expect(boundedTimeoutMs("999999")).toBe(30000);
   });
 });

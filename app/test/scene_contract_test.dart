@@ -114,7 +114,7 @@ void main() {
       );
     });
 
-    test('throws AppException when result is older than 15s freshness limit', () {
+    test('throws AppException when result is older than the 25s freshness limit', () {
       final result = const SceneResult(
         summary: 'Scene test',
         possibleConcern: false,
@@ -123,7 +123,7 @@ void main() {
         imageQuality: ImageQuality.usable,
       );
 
-      final staleTimestamp = DateTime.now().subtract(const Duration(seconds: 16));
+      final staleTimestamp = DateTime.now().subtract(const Duration(seconds: 26));
 
       expect(
         () => OutputPolicy.validateSceneResult(
@@ -176,8 +176,34 @@ void main() {
 
       expect(validated.summary, contains('EyeSense cannot confirm navigation safety or crossing decisions'));
       expect(validated.answer, contains('EyeSense cannot determine path safety or crossing decisions'));
-      expect(validated.possibleConcern, true);
-      expect(validated.concernDescription, contains('Walking or crossing guidance cannot be provided'));
+      expect(validated.possibleConcern, false);
+      expect(validated.concernDescription, isNull);
+    });
+
+    test('a violation in the answer keeps a legitimate concern description', () {
+      final result = const SceneResult(
+        summary: 'A doorway is ahead.',
+        answer: 'It is safe to cross.',
+        possibleConcern: true,
+        concernDescription: 'The doorway is partly blocked by a box.',
+        direction: SceneDirection.centre,
+        objects: ['door', 'safe to cross'],
+        imageQuality: ImageQuality.usable,
+        uncertainty: 'The path is clear.',
+      );
+
+      final validated = OutputPolicy.validateSceneResult(
+        result: result,
+        captureTimestamp: DateTime.now(),
+        taskGeneration: 1,
+        currentGeneration: 1,
+      );
+
+      expect(validated.summary, 'A doorway is ahead.');
+      expect(validated.answer, contains('cannot determine path safety'));
+      expect(validated.concernDescription, 'The doorway is partly blocked by a box.');
+      expect(validated.objects, ['door', 'unspecified']);
+      expect(validated.uncertainty, contains('Safety limitation'));
     });
 
     test('replaces Kiswahili road-crossing guidance with conservative limitation', () {
@@ -200,7 +226,8 @@ void main() {
 
       expect(validated.summary, contains('haiwezi kuthibitisha njia salama'));
       expect(validated.answer, contains('haiwezi kuamua usalama wa njia au kuvuka'));
-      expect(validated.possibleConcern, true);
+      expect(validated.possibleConcern, false);
+      expect(validated.concernDescription, isNull);
     });
   });
 }

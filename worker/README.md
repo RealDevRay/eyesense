@@ -40,7 +40,7 @@ Open `.dev.vars` in your editor and enter your real Groq API key:
 GROQ_API_KEY=gsk_your_actual_groq_key_here
 
 # Demo Access Token for prototype bearer validation
-DEMO_ACCESS_TOKEN=eyesense-demo-token-secret-pitch-2026
+DEMO_ACCESS_TOKEN=replace-with-a-local-token
 
 # Model identifier
 GROQ_VISION_MODEL=qwen/qwen3.8-27b
@@ -70,10 +70,7 @@ curl http://localhost:8787/health
 You should receive a `200 OK` JSON response:
 ```json
 {
-  "status": "ok",
-  "service": "eyesense-api",
-  "cloudEnabled": true,
-  "version": "1.0.0"
+  "status": "ok"
 }
 ```
 
@@ -98,7 +95,7 @@ npx wrangler secret put GROQ_API_KEY
 
 # 2. Set your Demo Access Token (must match what the app sends)
 npx wrangler secret put DEMO_ACCESS_TOKEN
-# (When prompted, type: eyesense-demo-token-secret-pitch-2026 and press Enter)
+# (When prompted, paste a new secret. Do not reuse any token that was ever committed.)
 ```
 
 ### Step 3: Deploy the Worker
@@ -138,7 +135,7 @@ You can connect the Flutter app to your Cloudflare Worker in two ways:
    `Success: Cloudflare Worker responded healthy.`
 7. In the **Demo Access Token** box, enter:
    ```
-   eyesense-demo-token-secret-pitch-2026
+   <the token you just set with wrangler secret put>
    ```
 8. Tap **Save Connection Settings**.
 
@@ -154,7 +151,7 @@ flutter build apk --dart-define=API_BASE_URL=https://eyesense-api.<your-subdomai
 
 | Method | Endpoint | Auth | Purpose |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/health` | None | Public health check returning service status |
-| `POST` | `/v1/vision` | `Bearer <DEMO_ACCESS_TOKEN>` | Scene description and questions with base64 JPEG |
-| `POST` | `/v1/reading` | `Bearer <DEMO_ACCESS_TOKEN>` | Structured reading / text extraction fallback |
-| `POST` | `/v1/conversation` | `Bearer <DEMO_ACCESS_TOKEN>` | Bounded conversational intent planning |
+| `GET` | `/health` | None | Returns `{ "status": "ok" }` only. It does not reveal whether secrets are configured. |
+| `POST` | `/v1/vision` | `Bearer <DEMO_ACCESS_TOKEN>` | Scene description and questions with base64 JPEG. Budgets live in the `BudgetDurableObject`. The daily ceiling is global. The per-minute ceiling is per client IP. |
+| `POST` | `/v1/reading` | Bearer, then `ROUTE_DISABLED` | Disabled. It does not call upstream inference. |
+| `POST` | `/v1/conversation` | Bearer, then `ROUTE_DISABLED` | Disabled. It does not call upstream inference. |

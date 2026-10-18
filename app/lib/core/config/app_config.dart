@@ -8,11 +8,15 @@ class AppConfig {
     defaultValue: 'https://eyesense-api.klantrilogy.workers.dev',
   );
 
-  // Default Demo Access Token for Hosted Mode (configurable via --dart-define=HOSTED_ACCESS_TOKEN=...)
+  /// Internal builds only. A public release must not pass this define.
+  /// Empty means hosted mode fails closed until a token is saved in secure storage.
   static const String defaultDemoAccessToken = String.fromEnvironment(
     'HOSTED_ACCESS_TOKEN',
-    defaultValue: 'eyesense-demo-token-secret-pitch-2026',
+    defaultValue: '',
   );
+
+  static const String termsVersion = '2026-10-18-draft';
+  static const String appVersionLabel = '1.0.0+1';
 
   // Fixed Groq API Endpoint for BYOK direct mode
   static const String groqDirectApiUrl = 'https://api.groq.com/openai/v1/chat/completions';
@@ -24,9 +28,10 @@ class AppConfig {
     'qwen/qwen3.8-27b',
   ];
 
-  // Request & Freshness Timeouts
-  static const Duration clientTimeout = Duration(seconds: 15);
-  static const Duration sceneFreshnessLimit = Duration(seconds: 15);
+  // The request deadline is shorter than the freshness window so capture,
+  // resize and one timed-out attempt can still deliver a usable result.
+  static const Duration clientTimeout = Duration(seconds: 10);
+  static const Duration sceneFreshnessLimit = Duration(seconds: 25);
   static const Duration conversationTurnExpiry = Duration(seconds: 60);
 
   // Image capture tuning

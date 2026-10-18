@@ -68,13 +68,13 @@ class OutputPolicy {
       );
     }
 
-    // 2. Freshness check (15 seconds since camera capture)
+    // Freshness is decided once, at delivery, before anything is spoken.
     final now = nowProvider != null ? nowProvider() : DateTime.now();
     final elapsed = now.difference(captureTimestamp);
     if (elapsed > AppConfig.sceneFreshnessLimit) {
       throw const AppException(
         code: ErrorCode.staleResultDiscarded,
-        userMessage: 'The scene observation has expired. Please capture a new image.',
+        userMessage: 'This observation is out of date. Take the picture again.',
       );
     }
 
@@ -86,35 +86,53 @@ class OutputPolicy {
       );
     }
 
-    // 4. Prohibited phrase checks & conservative limitation response
-    final bool summaryViolates = containsProhibitedSafetyGuidance(result.summary);
-    final bool answerViolates = result.answer != null && containsProhibitedSafetyGuidance(result.answer!);
-    final bool concernViolates = result.concernDescription != null && containsProhibitedSafetyGuidance(result.concernDescription!);
+    return applyFieldReplacements(result, language);
+  }
 
-    if (summaryViolates || answerViolates || concernViolates) {
-      final isSwahili = language == 'sw';
-      final limitationSummary = isSwahili
-          ? 'Picha inaonekana. EyeSense haiwezi kuthibitisha njia salama au kutoa maelekezo ya kuvuka. Tafadhali tumia msaada wako wa kawaida wa uhamaji.'
-          : 'Scene detected. EyeSense cannot confirm navigation safety or crossing decisions. Please rely on your mobility aids and physical orientation.';
+  /// Replaces only the fields that contain prohibited guidance.
+  /// A violation in one field does not discard text in another.
+  static SceneResult applyFieldReplacements(SceneResult result, String language) {
+    final isSwahili = language == 'sw';
+    final limitationSummary = isSwahili
+        ? 'Picha inaonekana. EyeSense haiwezi kuthibitisha njia salama au kutoa maelekezo ya kuvuka. Tafadhali tumia msaada wako wa kawaida wa uhamaji.'
+        : 'Scene detected. EyeSense cannot confirm navigation safety or crossing decisions. Please rely on your mobility aids and physical orientation.';
+    final limitationAnswer = isSwahili
+        ? 'EyeSense haiwezi kuamua usalama wa njia au kuvuka. Tafadhali tegemea vifaa vyako vya uhamaji.'
+        : 'EyeSense cannot determine path safety or crossing decisions. Please rely on your mobility aids.';
+    final limitationNote = isSwahili
+        ? 'Tahadhari ya usalama: Maelekezo ya kutembea au kuvuka hayawezi kutolewa kutoka kwa picha.'
+        : 'Safety limitation: Walking or crossing guidance cannot be provided from images.';
+    final unspecified = isSwahili ? 'haijabainishwa' : 'unspecified';
 
-      final limitationAnswer = result.answer != null
-          ? (isSwahili
-              ? 'EyeSense haiwezi kuamua usalama wa njia au kuvuka. Tafadhali tegemea vifaa vyako vya uhamaji.'
-              : 'EyeSense cannot determine path safety or crossing decisions. Please rely on your mobility aids.')
-          : null;
+    final summaryViolates = containsProhibitedSafetyGuidance(result.summary);
+    final answerViolates = result.answer != null && containsProhibitedSafetyGuidance(result.answer!);
+    final concernViolates =
+        result.concernDescription != null && containsProhibitedSafetyGuidance(result.concernDescription!);
+    final uncertaintyViolates = result.uncertainty != null && containsProhibitedSafetyGuidance(result.uncertainty!);
+    final objects = result.objects
+        .map((object) => containsProhibitedSafetyGuidance(object) ? unspecified : object)
+        .toList();
+    final objectsChanged = !_sameStrings(objects, result.objects);
 
-      final limitationConcern = isSwahili
-          ? 'Tahadhari ya usalama: Maelekezo ya kutembea au kuvuka hayawezi kutolewa kutoka kwa picha.'
-          : 'Safety limitation: Walking or crossing guidance cannot be provided from images.';
-
-      return result.copyWith(
-        summary: summaryViolates ? limitationSummary : result.summary,
-        answer: answerViolates ? limitationAnswer : result.answer,
-        possibleConcern: true,
-        concernDescription: limitationConcern,
-      );
+    if (!summaryViolates && !answerViolates && !concernViolates && !uncertaintyViolates && !objectsChanged) {
+      return result;
     }
 
-    return result;
+    return result.copyWith(
+      summary: summaryViolates ? limitationSummary : result.summary,
+      answer: answerViolates ? limitationAnswer : result.answer,
+      concernDescription: concernViolates ? limitationNote : result.concernDescription,
+      uncertainty: uncertaintyViolates ? limitationNote : result.uncertainty,
+      objects: objects,
+      possibleConcern: result.possibleConcern || concernViolates,
+    );
+  }
+
+  static bool _sameStrings(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 }

@@ -47,11 +47,17 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   }
 
   Future<void> _clearLogs() async {
-    await widget.logService.clearLogs();
+    final cleared = await widget.logService.clearLogs();
     await _refreshLogSize();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All diagnostic logs cleared.')),
+        SnackBar(
+          content: Text(
+            cleared
+                ? 'All diagnostic logs cleared.'
+                : 'Diagnostic logs could not be deleted.',
+          ),
+        ),
       );
     }
   }
@@ -87,7 +93,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SwitchListTile(
-              activeColor: colorScheme.primary,
+              activeThumbColor: colorScheme.primary,
               contentPadding: EdgeInsets.zero,
               title: Text('Enable Diagnostic Logging', style: theme.textTheme.titleMedium),
               subtitle: const Text('Records technical event metadata locally to assist debugging. Disabled by default.'),
@@ -98,10 +104,10 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF132240) : colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                color: isDark ? colorScheme.surface : colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: colorScheme.primary.withOpacity(0.3),
+                  color: colorScheme.outline,
                   width: 1,
                 ),
               ),

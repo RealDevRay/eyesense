@@ -38,7 +38,7 @@ class FakeCameraService extends CameraService {
   }
 
   @override
-  Future<CapturedOcrData> captureForOcr() async {
+  Future<CapturedOcrData> captureForOcr({void Function(String phrase)? onGuidance}) async {
     captureCount++;
     return CapturedOcrData(
       file: File('test_dummy.jpg'),
@@ -61,6 +61,7 @@ class FakeVisionApiService implements VisionApiService {
     required String base64Jpeg,
     required String language,
     CancelToken? cancelToken,
+    Duration? timeout,
   }) async {
     describeCalls++;
     return cannedResult ??
@@ -80,6 +81,7 @@ class FakeVisionApiService implements VisionApiService {
     required String question,
     required String language,
     CancelToken? cancelToken,
+    Duration? timeout,
   }) async {
     askCalls++;
     return cannedResult ??
@@ -198,6 +200,14 @@ void main() {
       expect(coordinator.state, OperationState.error);
       expect(coordinator.errorMessage, contains('Cloud processing requires consent'));
       expect(tts.spokenTexts.last, contains('Cloud processing requires consent'));
+    });
+
+    test('an error is not spoken when automatic reading is off', () async {
+      await prefs.setAutoRead(false);
+      await coordinator.executeDescribe();
+      expect(coordinator.state, OperationState.error);
+      expect(coordinator.errorMessage, contains('Cloud processing requires consent'));
+      expect(tts.spokenTexts, isEmpty);
     });
 
     test('executeAskQuestion with consent=false makes 0 cloud requests and sets error', () async {

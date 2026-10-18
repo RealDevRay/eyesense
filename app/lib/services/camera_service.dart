@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:eyesense/core/config/app_config.dart';
 import 'package:eyesense/core/errors/app_exceptions.dart';
+import 'package:eyesense/services/frame_guidance.dart';
 import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class CapturedImageData {
@@ -112,8 +116,47 @@ class CameraService {
     }
   }
 
-  /// Lightweight capture for on-device OCR without expensive image decoding, resizing, or base64 encoding
-  Future<CapturedOcrData> captureForOcr() async {
+  Future<PermissionStatus> permissionStatus() => Permission.camera.status;
+
+  Future<bool> hasPermission() async => (await Permission.camera.status).isGranted;
+
+  Future<bool> isPermissionPermanentlyDenied() async =>
+      (await Permission.camera.status).isPermanentlyDenied;
+
+  /// Asks for camera permission without starting a capture. Call this from a
+  /// labelled step so the system dialog is not interleaved with an operation.
+  Future<bool> requestPermission() async {
+    final status = await Permission.camera.status;
+    if (status.isGranted) return true;
+    if (status.isPermanentlyDenied) return false;
+    final result = await Permission.camera.request();
+    return result.isGranted;
+  }
+
+  /// Deletes camera stills left behind by a crash. Only files named like the
+  /// camera plugin's `CAP<digits>.jpg` and older than two minutes are removed.
+  Future<void> sweepOrphanedCaptures() async {
+    try {
+      final dir = await getTemporaryDirectory();
+      final cutoff = DateTime.now().subtract(const Duration(minutes: 2));
+      await for (final entity in dir.list()) {
+        if (entity is! File) continue;
+        final name = p.basename(entity.path);
+        if (!RegExp(r'^CAP\d+\.jpe?g$', caseSensitive: false).hasMatch(name)) continue;
+        final modified = await entity.lastModified();
+        if (modified.isBefore(cutoff)) {
+          await deleteTemporaryCapture(entity);
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Lightweight capture for on-device OCR without expensive image decoding, resizing, or base64 encoding.
+  ///
+  /// When [onGuidance] is set, low-resolution frames are assessed first and a
+  /// still is taken after the frame looks stable, or after a short timeout.
+  /// ML Kit itself still cannot be cancelled once recognition starts.
+  Future<CapturedOcrData> captureForOcr({void Function(String phrase)? onGuidance}) async {
     if (_isCapturing) {
       throw const AppException(
         code: ErrorCode.cameraUnavailable,
@@ -125,6 +168,10 @@ class CameraService {
     try {
       if (!isInitialized) {
         await initialize(preset: ResolutionPreset.high);
+      }
+
+      if (onGuidance != null) {
+        await _guideBeforeCapture(onGuidance);
       }
 
       final captureTime = DateTime.now();
@@ -196,6 +243,47 @@ class CameraService {
       );
     } finally {
       _isCapturing = false;
+    }
+  }
+
+  Future<void> _guideBeforeCapture(void Function(String phrase) onGuidance) async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    FrameAssessment? previous;
+    var stable = 0;
+    final done = Completer<void>();
+    try {
+      await controller.startImageStream((image) {
+        if (done.isCompleted || image.planes.isEmpty) return;
+        final plane = image.planes.first;
+        final assessment = FrameGuidance.assess(
+          plane.bytes,
+          image.width,
+          image.height,
+          bytesPerRow: plane.bytesPerRow,
+        );
+        if (assessment.correction != null) {
+          onGuidance(assessment.correction!);
+          stable = 0;
+        } else if (previous != null && assessment.isStableWith(previous!)) {
+          stable++;
+        } else {
+          stable = 0;
+        }
+        previous = assessment;
+        if (assessment.readyToCapture && stable >= 2 && !done.isCompleted) {
+          done.complete();
+        }
+      });
+      await done.future.timeout(const Duration(seconds: 8), onTimeout: () {});
+    } catch (_) {
+      // Guidance is optional. A still capture still happens.
+    } finally {
+      try {
+        if (controller.value.isStreamingImages) {
+          await controller.stopImageStream();
+        }
+      } catch (_) {}
     }
   }
 

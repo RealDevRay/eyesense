@@ -45,6 +45,7 @@ export const VisionRequestSchema = z
       base64: z
         .string()
         .min(4)
+        .max(1_400_000)
         .refine((val) => val.startsWith("/9j"), {
           message: "Image base64 must represent a valid JPEG beginning with JPEG header (/9j)",
         }),

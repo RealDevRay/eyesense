@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:eyesense/core/speech/speech_rate.dart';
 import 'package:eyesense/services/preferences_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -50,8 +51,7 @@ class TtsService extends ChangeNotifier {
   }
 
   Future<void> updateSettings() async {
-    // Map speech rate safely (clamp between 0.25 and 1.0)
-    final rate = _prefs.speechRate.clamp(0.25, 1.0);
+    final rate = SpeechRateScale.toPlatformRate(_prefs.speechRate);
     await _tts.setSpeechRate(rate);
 
     final lang = _prefs.language;
@@ -188,5 +188,13 @@ class TtsService extends ChangeNotifier {
     if (_lastSpokenText.isNotEmpty) {
       await speak(_lastSpokenText);
     }
+  }
+
+  @override
+  void dispose() {
+    _stopRequested = true;
+    _completeActiveChunk();
+    _tts.stop();
+    super.dispose();
   }
 }

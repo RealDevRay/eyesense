@@ -12,6 +12,7 @@ enum ErrorCode {
   cloudDisabled,
   validationFailed,
   staleResultDiscarded,
+  callBudgetExceeded,
   operationCancelled,
   cloudConsentRequired,
   prohibitedSafetyGuidance,

@@ -1,5 +1,8 @@
 import 'package:eyesense/agents/agent_coordinator.dart';
+import 'package:eyesense/core/config/app_config.dart';
+import 'package:eyesense/core/speech/speech_rate.dart';
 import 'package:eyesense/features/diagnostics/diagnostics_screen.dart';
+import 'package:eyesense/features/legal/legal_document_screen.dart';
 import 'package:eyesense/features/onboarding/onboarding_screen.dart';
 import 'package:eyesense/features/settings/ai_connection_screen.dart';
 import 'package:eyesense/services/credential_service.dart';
@@ -36,12 +39,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _assignFromService();
+    widget.preferencesService.addListener(_syncFromService);
+  }
+
+  void _assignFromService() {
     _speechRate = widget.preferencesService.speechRate;
     _language = widget.preferencesService.language;
     _haptics = widget.preferencesService.hapticsEnabled;
     _autoRead = widget.preferencesService.autoRead;
     _cloudConsent = widget.preferencesService.cloudConsentGranted;
     _themeMode = widget.preferencesService.themeModeString;
+  }
+
+  @override
+  void dispose() {
+    widget.preferencesService.removeListener(_syncFromService);
+    super.dispose();
+  }
+
+  void _syncFromService() {
+    if (!mounted) return;
+    setState(_assignFromService);
   }
 
   @override
@@ -58,14 +77,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Theme Mode', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            subtitle: const Text('System default, high-contrast dark, or light'),
+            subtitle: const Text('System, dark, light, or maximum contrast'),
             trailing: DropdownButton<String>(
               dropdownColor: Theme.of(context).colorScheme.surface,
               value: _themeMode,
               items: const [
                 DropdownMenuItem(value: 'system', child: Text('System')),
-                DropdownMenuItem(value: 'dark', child: Text('Dark Navy')),
-                DropdownMenuItem(value: 'light', child: Text('Light Teal')),
+                DropdownMenuItem(value: 'dark', child: Text('Dark')),
+                DropdownMenuItem(value: 'light', child: Text('Light')),
+                DropdownMenuItem(value: 'contrast', child: Text('Maximum contrast')),
               ],
               onChanged: (val) {
                 if (val != null) {
@@ -79,16 +99,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           Text('Speech & Audio', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
-          Text('Speech Rate: ${_speechRate.toStringAsFixed(1)}x', style: const TextStyle(fontSize: 16)),
+          Text('Speech rate: ${SpeechRateScale.labelFor(_speechRate)}'),
           Slider(
             value: _speechRate,
-            min: 0.5,
-            max: 2.0,
-            divisions: 6,
+            min: SpeechRateScale.minProduct,
+            max: SpeechRateScale.maxProduct,
+            divisions: SpeechRateScale.divisions,
+            label: SpeechRateScale.labelFor(_speechRate),
+            semanticFormatterCallback: SpeechRateScale.labelFor,
             onChanged: (val) {
-              setState(() => _speechRate = val);
               widget.preferencesService.setSpeechRate(val);
             },
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton(
+              onPressed: () => widget.coordinator.ttsService.speak('This is EyeSense at the selected speaking rate.'),
+              child: const Text('Preview voice'),
+            ),
           ),
           const SizedBox(height: 12),
           ListTile(
@@ -186,9 +214,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           const SizedBox(height: 12),
+          const SizedBox(height: 24),
+          Text('Legal', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(
+            'EyeSense is a supplementary visual assistant. It is not a medical device, not a mobility aid, and not a navigation aid.',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.help_outline, color: Theme.of(context).colorScheme.primary, size: 28),
+            title: const Text('Privacy Policy'),
+            subtitle: Text('Draft ${AppConfig.termsVersion}. Accepted: ${widget.preferencesService.acceptedTermsVersion ?? 'not yet'}'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const LegalDocumentScreen(title: 'Privacy Policy', assetPath: 'assets/legal/privacy-policy.md'),
+            )),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Terms of Use'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const LegalDocumentScreen(title: 'Terms of Use', assetPath: 'assets/legal/terms-of-service.md'),
+            )),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Open-source licences'),
+            subtitle: Text('Version ${AppConfig.appVersionLabel}'),
+            onTap: () => showLicensePage(
+              context: context,
+              applicationName: 'EyeSense',
+              applicationVersion: AppConfig.appVersionLabel,
+            ),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.help_outline, color: Theme.of(context).colorScheme.primary, size: 24),
             title: const Text('Tutorial & Practice', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             subtitle: const Text('Replay the introductory onboarding walkthrough'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 18),

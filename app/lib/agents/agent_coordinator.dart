@@ -1,11 +1,11 @@
 import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:eyesense/agents/agent_task.dart';
-import 'package:eyesense/core/config/app_config.dart';
 import 'package:eyesense/agents/conversation_agent.dart';
 import 'package:eyesense/agents/reading_agent.dart';
 import 'package:eyesense/agents/scene_agent.dart';
-import 'package:eyesense/core/accessibility/semantic_announcer.dart';
+import 'package:eyesense/core/config/app_config.dart';
 import 'package:eyesense/core/errors/app_exceptions.dart';
 import 'package:eyesense/models/app_operation.dart';
 import 'package:eyesense/models/presentation_record.dart';
@@ -13,6 +13,7 @@ import 'package:eyesense/models/scene_result.dart';
 import 'package:eyesense/services/camera_service.dart';
 import 'package:eyesense/services/credential_service.dart';
 import 'package:eyesense/services/diagnostic_log_service.dart';
+import 'package:eyesense/services/earcon_service.dart';
 import 'package:eyesense/services/haptic_service.dart';
 import 'package:eyesense/services/ocr_service.dart';
 import 'package:eyesense/services/preferences_service.dart';
@@ -25,6 +26,8 @@ import 'package:eyesense/services/vision_api_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+enum ActiveWork { voiceCommand, describe, readText, ask }
+
 class AgentCoordinator extends ChangeNotifier {
   final CameraService cameraService;
   final TtsService ttsService;
@@ -36,6 +39,7 @@ class AgentCoordinator extends ChangeNotifier {
   final DiagnosticLogService logService;
   final DateTime Function() _nowProvider;
   late final SpeechFeedbackCoordinator speechFeedbackCoordinator;
+  late final EarconService earconService;
 
   late SceneAgent sceneAgent;
   late final ReadingAgent readingAgent;
@@ -49,9 +53,13 @@ class AgentCoordinator extends ChangeNotifier {
   PresentationRecord? _lastPresentation;
   String? _errorMessage;
   CancelToken? _activeCancelToken;
+  ActiveWork? _activeWork;
+  DateTime? _lastGuidanceCueAt;
+  String? _lastGuidancePhrase;
 
   OperationState get state => _state;
   AppMode get currentMode => _currentMode;
+  ActiveWork? get activeWork => _activeWork;
   String? get lastResultText => _lastResultText;
   SceneResult? get lastSceneResult => _lastSceneResult;
   PresentationRecord? get lastPresentation => _lastPresentation;
@@ -68,11 +76,15 @@ class AgentCoordinator extends ChangeNotifier {
     required this.logService,
     VisionApiService? visionApi,
     DateTime Function()? nowProvider,
+    EarconService? earcons,
   }) : _nowProvider = nowProvider ?? DateTime.now {
     speechFeedbackCoordinator = SpeechFeedbackCoordinator(
       ttsService: ttsService,
       hapticService: hapticService,
+      now: nowProvider,
     );
+    earconService = earcons ?? EarconService(preferencesService, ttsService);
+    _currentMode = preferencesService.appMode;
     refreshVisionProvider(visionApi);
     readingAgent = ReadingAgent(prefs: preferencesService, logService: logService);
     conversationAgent = ConversationAgent(logService: logService);
@@ -96,60 +108,86 @@ class AgentCoordinator extends ChangeNotifier {
   void _setState(OperationState newState, {String? announcement}) {
     _state = newState;
     notifyListeners();
-    final message = announcement ?? newState.localizedAnnouncement;
-    SemanticAnnouncer.announce(message);
-  }
-
-  void setMode(AppMode mode) {
-    if (_currentMode != mode) {
-      stop();
-      _currentMode = mode;
-      notifyListeners();
+    if (announcement != null && announcement.isNotEmpty && newState != OperationState.speaking) {
+      speechFeedbackCoordinator.speakStatus(announcement);
     }
   }
 
-  /// Cancels all active operations, stops speech, invalidates generations
+  void setMode(AppMode mode) {
+    if (_currentMode == mode) return;
+    stop();
+    _currentMode = mode;
+    unawaited(preferencesService.setAppMode(mode));
+    notifyListeners();
+    speechFeedbackCoordinator.speakStatus(mode.displayName);
+  }
+
+  void announceCurrentMode() {
+    speechFeedbackCoordinator.speakStatus('Current mode: ${currentMode.displayName}');
+  }
+
+  /// Cancels network work and playback without a spoken announcement.
+  /// Used when the app is backgrounded, including during a permission dialog
+  /// that has already been separated from the operation.
+  Future<void> suspend() async {
+    _currentGeneration++;
+    _activeCancelToken?.cancel('Suspended');
+    _activeCancelToken = null;
+    _activeWork = null;
+    await speechService.cancel();
+    await speechFeedbackCoordinator.stopAll();
+    await earconService.stopLoop();
+    await cameraService.dispose();
+    _state = OperationState.idle;
+    notifyListeners();
+  }
+
+  /// Cancels all active operations, stops speech, invalidates generations.
   void stop() {
     _currentGeneration++;
     _activeCancelToken?.cancel('Stopped by user');
     _activeCancelToken = null;
-    ttsService.stop();
+    _activeWork = null;
     speechService.cancel();
-    _setState(OperationState.idle, announcement: 'Stopped');
+    unawaited(earconService.stopLoop());
+    unawaited(speechFeedbackCoordinator.interruptWith('Stopped'));
+    _errorMessage = null;
+    _state = OperationState.idle;
+    notifyListeners();
   }
 
-  /// Repeats the last completed response
+  void dismissError() {
+    if (_state != OperationState.error) return;
+    _errorMessage = null;
+    _state = OperationState.idle;
+    notifyListeners();
+  }
+
   Future<void> repeatLast() async {
-    // If actively capturing or processing, do not silently reset
     if (_state == OperationState.capturing ||
         _state == OperationState.processingCloud ||
         _state == OperationState.processingLocal ||
         _state == OperationState.listening) {
-      SemanticAnnouncer.announce('Cannot repeat while operation is in progress. Tap Stop first.');
+      speechFeedbackCoordinator.speakStatus('Cannot repeat while an operation is in progress. Use Stop first.');
       return;
     }
 
     if (_lastPresentation != null) {
       _lastPresentation = _lastPresentation!.asPrevious();
-      _setState(OperationState.speaking);
-      await ttsService.speak(_lastPresentation!.toSpokenText());
-      _setState(OperationState.idle);
+      notifyListeners();
+      await _speakPresentation(_lastPresentation!, _currentGeneration);
     } else if (_lastResultText != null && _lastResultText!.isNotEmpty) {
-      _setState(OperationState.speaking);
-      await ttsService.speak('Previous result: $_lastResultText');
-      _setState(OperationState.idle);
+      await _speakText('Previous result: $_lastResultText', _currentGeneration);
     } else {
-      SemanticAnnouncer.announce('No previous description available.');
+      speechFeedbackCoordinator.speakStatus('No previous description available.');
     }
   }
 
-  /// 1. Describe Workflow
   Future<void> executeDescribe() async {
-    // Phase 1 Consent Check: Must have explicit cloud consent
     if (!preferencesService.cloudConsentGranted) {
-      _handleError(const AppException(
+      await _handleError(const AppException(
         code: ErrorCode.cloudConsentRequired,
-        userMessage: 'Cloud processing requires consent. Please enable it in Settings or use Read Text offline.',
+        userMessage: 'Cloud processing requires consent. Enable it in Settings, or use Read Text offline.',
       ));
       return;
     }
@@ -158,19 +196,18 @@ class AgentCoordinator extends ChangeNotifier {
     _activeCancelToken?.cancel('Superseded by new operation');
     final cancelToken = CancelToken();
     _activeCancelToken = cancelToken;
-
-    final requestId = const Uuid().v4();
+    _activeWork = ActiveWork.describe;
     _errorMessage = null;
     CapturedImageData? captured;
 
     try {
       await hapticService.confirmAction();
+      unawaited(earconService.play(Earcon.shutter));
       _setState(OperationState.capturing, announcement: 'Taking a picture');
 
       captured = await cameraService.captureAndCompress();
       if (gen != _currentGeneration) return;
 
-      // Recheck consent immediately before network dispatch
       if (!preferencesService.cloudConsentGranted) {
         throw const AppException(
           code: ErrorCode.cloudConsentRequired,
@@ -178,14 +215,17 @@ class AgentCoordinator extends ChangeNotifier {
         );
       }
 
+      unawaited(earconService.play(Earcon.processing));
       _setState(OperationState.processingCloud, announcement: 'Describing scene');
 
       final task = AgentTask(
-        requestId: requestId,
+        requestId: const Uuid().v4(),
         generation: gen,
         role: AgentRole.scene,
         providerMode: preferencesService.providerMode,
         captureTimestamp: captured.timestamp,
+        maxCalls: AppConfig.maxModelCallsPerOperation,
+        timeout: AppConfig.clientTimeout,
       );
 
       final result = await sceneAgent.execute(
@@ -198,7 +238,6 @@ class AgentCoordinator extends ChangeNotifier {
       );
       if (gen != _currentGeneration) return;
 
-      // Presentation record is the single source of truth for display & speech
       final presentation = PresentationRecord(
         kind: TaskKind.describe,
         timestamp: _nowProvider(),
@@ -212,42 +251,47 @@ class AgentCoordinator extends ChangeNotifier {
       _lastSceneResult = result;
       _lastResultText = result.summary;
       _lastPresentation = presentation;
+      notifyListeners();
 
       if (result.possibleConcern) {
         await hapticService.indicateConcern();
+        unawaited(earconService.play(Earcon.concern));
+      } else {
+        unawaited(earconService.play(Earcon.success));
       }
-
-      _setState(OperationState.speaking);
-      if (preferencesService.autoRead) {
-        await ttsService.speak(presentation.toSpokenText());
-      }
-      if (gen != _currentGeneration) return;
-      _setState(OperationState.idle);
+      await earconService.stopLoop();
+      await _speakPresentation(presentation, gen);
     } catch (e) {
       if (gen != _currentGeneration) return;
-      _handleError(e);
+      await earconService.stopLoop();
+      await _handleError(e);
     } finally {
-      if (_activeCancelToken == cancelToken) {
-        _activeCancelToken = null;
-      }
+      if (_activeWork == ActiveWork.describe) _activeWork = null;
+      if (_activeCancelToken == cancelToken) _activeCancelToken = null;
       await cameraService.deleteTemporaryCapture(captured?.file);
+      notifyListeners();
     }
   }
 
-  /// 2. Read Text Workflow (Local on-device OCR - works 100% offline without cloud consent)
+  /// On-device OCR. ML Kit's processImage cannot be aborted; Stop invalidates
+  /// the generation, halts playback and discards the text when it arrives.
+  /// The recognition itself keeps running until the platform call returns.
   Future<void> executeReadText() async {
     final gen = ++_currentGeneration;
     _activeCancelToken?.cancel('Superseded by new operation');
     _activeCancelToken = null;
+    _activeWork = ActiveWork.readText;
     _errorMessage = null;
     CapturedOcrData? captured;
 
     try {
       await hapticService.confirmAction();
+      unawaited(earconService.play(Earcon.shutter));
       _setState(OperationState.capturing, announcement: 'Taking a picture');
 
-      // Use dedicated lightweight capture without image decoding/resizing overhead
-      captured = await cameraService.captureForOcr();
+      captured = await cameraService.captureForOcr(
+        onGuidance: preferencesService.aimingGuidance ? _onGuidance : null,
+      );
       if (gen != _currentGeneration) return;
 
       _setState(OperationState.processingLocal, announcement: 'Reading text');
@@ -255,7 +299,6 @@ class AgentCoordinator extends ChangeNotifier {
       final text = await ocrService.recognizeText(captured.file);
       if (gen != _currentGeneration) return;
 
-      // Clear scene-only metadata when OCR completes
       _lastSceneResult = null;
       final presentation = PresentationRecord(
         kind: TaskKind.readText,
@@ -267,45 +310,38 @@ class AgentCoordinator extends ChangeNotifier {
 
       _lastResultText = text;
       _lastPresentation = presentation;
-      _setState(OperationState.speaking);
-
-      if (preferencesService.autoRead) {
-        await ttsService.speak(presentation.toSpokenText());
-      }
-      if (gen != _currentGeneration) return;
-      _setState(OperationState.idle);
+      notifyListeners();
+      unawaited(earconService.play(Earcon.success));
+      await _speakPresentation(presentation, gen);
     } catch (e) {
       if (gen != _currentGeneration) return;
-      _handleError(e);
+      await _handleError(e);
     } finally {
+      if (_activeWork == ActiveWork.readText) _activeWork = null;
       await cameraService.deleteTemporaryCapture(captured?.file);
+      notifyListeners();
     }
   }
 
-  /// 3. Ask Question Workflow
   Future<void> executeAskQuestion(String question) async {
-    // Phase 1 Consent Check: Must have explicit cloud consent
     if (!preferencesService.cloudConsentGranted) {
-      _handleError(const AppException(
+      await _handleError(const AppException(
         code: ErrorCode.cloudConsentRequired,
-        userMessage: 'Cloud processing requires consent. Please enable it in Settings or use Read Text offline.',
+        userMessage: 'Cloud processing requires consent. Enable it in Settings, or use Read Text offline.',
       ));
       return;
     }
 
     final trimmedQuestion = question.trim();
     if (trimmedQuestion.isEmpty) {
-      _handleError(const AppException(
-        code: ErrorCode.validationFailed,
-        userMessage: 'Please ask a specific question about the scene.',
-      ));
+      await speechFeedbackCoordinator.interruptWith('Say or type a question first.');
       return;
     }
 
     if (trimmedQuestion.length > AppConfig.maxQuestionCharacters) {
-      _handleError(const AppException(
+      await _handleError(const AppException(
         code: ErrorCode.validationFailed,
-        userMessage: 'Question exceeds 300 characters limit. Please ask a more concise question.',
+        userMessage: 'That question is longer than 300 characters. Ask a shorter question.',
       ));
       return;
     }
@@ -314,19 +350,18 @@ class AgentCoordinator extends ChangeNotifier {
     _activeCancelToken?.cancel('Superseded by new operation');
     final cancelToken = CancelToken();
     _activeCancelToken = cancelToken;
-
-    final requestId = const Uuid().v4();
+    _activeWork = ActiveWork.ask;
     _errorMessage = null;
     CapturedImageData? captured;
 
     try {
       await hapticService.confirmAction();
+      unawaited(earconService.play(Earcon.shutter));
       _setState(OperationState.capturing, announcement: 'Taking a picture');
 
       captured = await cameraService.captureAndCompress();
       if (gen != _currentGeneration) return;
 
-      // Recheck consent immediately before network dispatch
       if (!preferencesService.cloudConsentGranted) {
         throw const AppException(
           code: ErrorCode.cloudConsentRequired,
@@ -334,14 +369,17 @@ class AgentCoordinator extends ChangeNotifier {
         );
       }
 
+      unawaited(earconService.play(Earcon.processing));
       _setState(OperationState.processingCloud, announcement: 'Answering question');
 
       final task = AgentTask(
-        requestId: requestId,
+        requestId: const Uuid().v4(),
         generation: gen,
         role: AgentRole.scene,
         providerMode: preferencesService.providerMode,
         captureTimestamp: captured.timestamp,
+        maxCalls: AppConfig.maxModelCallsPerOperation,
+        timeout: AppConfig.clientTimeout,
       );
 
       final result = await sceneAgent.execute(
@@ -372,41 +410,42 @@ class AgentCoordinator extends ChangeNotifier {
       _lastSceneResult = result;
       _lastResultText = answerText;
       _lastPresentation = presentation;
+      notifyListeners();
 
       if (result.possibleConcern) {
         await hapticService.indicateConcern();
+        unawaited(earconService.play(Earcon.concern));
+      } else {
+        unawaited(earconService.play(Earcon.success));
       }
-
-      _setState(OperationState.speaking);
-      if (preferencesService.autoRead) {
-        await ttsService.speak(presentation.toSpokenText());
-      }
-      if (gen != _currentGeneration) return;
-      _setState(OperationState.idle);
+      await earconService.stopLoop();
+      await _speakPresentation(presentation, gen);
     } catch (e) {
       if (gen != _currentGeneration) return;
-      _handleError(e);
+      await earconService.stopLoop();
+      await _handleError(e);
     } finally {
-      if (_activeCancelToken == cancelToken) {
-        _activeCancelToken = null;
-      }
+      if (_activeWork == ActiveWork.ask) _activeWork = null;
+      if (_activeCancelToken == cancelToken) _activeCancelToken = null;
       await cameraService.deleteTemporaryCapture(captured?.file);
+      notifyListeners();
     }
   }
 
-  /// Voice Ask helper
   Future<void> startVoiceAsk() async {
     if (!preferencesService.cloudConsentGranted) {
-      _handleError(const AppException(
+      await _handleError(const AppException(
         code: ErrorCode.cloudConsentRequired,
-        userMessage: 'Cloud processing requires consent. Please enable it in Settings or use Read Text offline.',
+        userMessage: 'Cloud processing requires consent. Enable it in Settings, or use Read Text offline.',
       ));
       return;
     }
 
     final gen = ++_currentGeneration;
+    _activeWork = ActiveWork.ask;
     await ttsService.stop();
-    _setState(OperationState.listening, announcement: 'Listening for question');
+    unawaited(earconService.play(Earcon.listening));
+    _setState(OperationState.listening, announcement: 'Listening for a question');
 
     try {
       await speechService.listen(
@@ -419,90 +458,188 @@ class AgentCoordinator extends ChangeNotifier {
         onOutcome: (outcome) {
           if (gen != _currentGeneration) return;
           if (outcome.type == SpeechOutcomeType.noSpeech) {
-            _setState(OperationState.idle, announcement: 'No speech heard. You can try again or type your question.');
+            if (_activeWork == ActiveWork.ask) _activeWork = null;
+            _setState(OperationState.idle, announcement: 'No speech heard. You can try again or type the question.');
           } else if (outcome.type == SpeechOutcomeType.permissionDenied) {
             _handleError(const AppException(
               code: ErrorCode.microphonePermissionDenied,
-              userMessage: 'Microphone permission was denied. You can type your question instead.',
+              userMessage: 'Microphone permission was denied. You can type the question instead.',
             ));
           } else if (outcome.type == SpeechOutcomeType.unavailable) {
             _handleError(const AppException(
               code: ErrorCode.speechRecognitionUnavailable,
-              userMessage: 'Speech recognition is unavailable. You can type your question instead.',
+              userMessage: 'Speech recognition is unavailable. You can type the question instead.',
             ));
           }
         },
       );
     } catch (e) {
-      if (gen == _currentGeneration) {
-        _handleError(e);
+      if (gen == _currentGeneration) await _handleError(e);
+    } finally {
+      if (_activeWork == ActiveWork.ask && _state == OperationState.listening) {
+        _activeWork = null;
       }
     }
   }
 
-  /// Top-level voice command: routes simple commands using token-aware matching,
-  /// avoiding false substring matches (e.g. "stop sign", "bread", "textile").
   Future<void> executeVoiceCommand() async {
     final gen = ++_currentGeneration;
+    _activeWork = ActiveWork.voiceCommand;
     await speechFeedbackCoordinator.stopAll();
     await speechFeedbackCoordinator.playReadinessCue();
-    _setState(OperationState.listening, announcement: 'Listening for voice command');
+    unawaited(earconService.play(Earcon.listening));
+    _setState(OperationState.listening, announcement: 'Listening for a voice command');
 
     try {
       await speechService.listen(
         localeId: preferencesService.language == 'sw' ? 'sw-KE' : 'en-US',
         onResult: (words, isFinal) async {
-          if (isFinal && words.trim().isNotEmpty && gen == _currentGeneration) {
-            final clean = words.toLowerCase().trim();
-
-            // Token-aware matching for standalone command words
-            final isStop = RegExp(r'^(stop|acha|nyamaza)$').hasMatch(clean);
-            final isRepeat = RegExp(r'^(repeat|rudia)$').hasMatch(clean);
-            final isDescribe = RegExp(r'^(describe|describe scene|tazama|eleza|eleza mandhari)$').hasMatch(clean);
-            final isRead = RegExp(r'^(read|read text|soma|soma maandishi)$').hasMatch(clean);
-
-            if (isStop) {
+          if (!(isFinal && words.trim().isNotEmpty && gen == _currentGeneration)) return;
+          final task = AgentTask(
+            requestId: const Uuid().v4(),
+            generation: gen,
+            role: AgentRole.conversation,
+            providerMode: preferencesService.providerMode,
+            maxCalls: 1,
+          );
+          final intent = await conversationAgent.resolveIntent(
+            task: task,
+            input: words,
+            language: preferencesService.language,
+          );
+          if (gen != _currentGeneration) return;
+          switch (intent) {
+            case 'stop':
               stop();
-            } else if (isRepeat) {
+            case 'repeat':
               repeatLast();
-            } else if (isDescribe) {
+            case 'describe_scene':
               executeDescribe();
-            } else if (isRead) {
+            case 'read_text':
               executeReadText();
-            } else {
-              // Any detailed question routes to visual QA (requires consent)
+            case 'ask_scene':
               executeAskQuestion(words);
-            }
+            default:
+              if (_activeWork == ActiveWork.voiceCommand) _activeWork = null;
+              _setState(
+                OperationState.idle,
+                announcement: 'Say describe, read text, repeat, stop, or ask a question.',
+              );
           }
         },
         onOutcome: (outcome) {
           if (gen != _currentGeneration) return;
           if (outcome.type == SpeechOutcomeType.noSpeech) {
-            _setState(OperationState.idle, announcement: 'No voice command heard. Try tapping an action button.');
+            if (_activeWork == ActiveWork.voiceCommand) _activeWork = null;
+            _setState(OperationState.idle, announcement: 'No voice command heard. Use a button, or try again.');
           } else if (outcome.type == SpeechOutcomeType.permissionDenied) {
             _handleError(const AppException(
               code: ErrorCode.microphonePermissionDenied,
-              userMessage: 'Microphone permission was denied. Tap an action button directly.',
+              userMessage: 'Microphone permission was denied. Use a button instead.',
             ));
           } else if (outcome.type == SpeechOutcomeType.unavailable) {
             _handleError(const AppException(
               code: ErrorCode.speechRecognitionUnavailable,
-              userMessage: 'Speech recognition is unavailable. Tap an action button directly.',
+              userMessage: 'Speech recognition is unavailable. Use a button instead.',
             ));
           }
         },
       );
     } catch (e) {
-      if (gen == _currentGeneration) {
-        _handleError(e);
+      if (gen == _currentGeneration) await _handleError(e);
+    } finally {
+      if (_activeWork == ActiveWork.voiceCommand && _state == OperationState.listening) {
+        _activeWork = null;
       }
     }
   }
 
-  void _handleError(Object e) {
+  Future<void> runCurrentMode() {
+    switch (_currentMode) {
+      case AppMode.describe:
+        return executeDescribe();
+      case AppMode.readText:
+        return executeReadText();
+      case AppMode.ask:
+        return startVoiceAsk();
+      case AppMode.awareness:
+        return executeDescribe();
+    }
+  }
+
+  void cycleMode(int direction) {
+    const order = [AppMode.describe, AppMode.readText, AppMode.ask];
+    final index = order.indexOf(_currentMode);
+    final raw = (index < 0 ? 0 : index) + direction;
+    var wrapped = raw % order.length;
+    if (wrapped < 0) wrapped += order.length;
+    final next = order[wrapped];
+    // setMode calls stop(); cycling should not announce Stop over the mode name.
+    _currentMode = next;
+    unawaited(preferencesService.setAppMode(next));
+    notifyListeners();
+    speechFeedbackCoordinator.speakStatus(next.displayName);
+  }
+
+  void _onGuidance(String phrase) {
+    final now = _nowProvider();
+    if (_lastGuidancePhrase == phrase &&
+        _lastGuidanceCueAt != null &&
+        now.difference(_lastGuidanceCueAt!) < const Duration(seconds: 2)) {
+      return;
+    }
+    _lastGuidancePhrase = phrase;
+    _lastGuidanceCueAt = now;
+    speechFeedbackCoordinator.speakStatus(phrase);
+  }
+
+  Future<void> _speakPresentation(PresentationRecord presentation, int generation) async {
+    final full = presentation.toSpokenText();
+    final spoken = _leadSentence(full);
+    await _speakText(spoken, generation);
+  }
+
+  String _leadSentence(String text) {
+    final trimmed = text.trim();
+    if (trimmed.length < 180) return trimmed;
+    final match = RegExp(r'^.{1,180}?[.!]').firstMatch(trimmed);
+    if (match == null) return trimmed;
+    return '${match.group(0)} More detail is on screen.';
+  }
+
+  Future<void> speakMoreDetail() async {
+    final text = _lastPresentation?.toSpokenText() ?? _lastResultText;
+    if (text == null || text.trim().isEmpty) {
+      speechFeedbackCoordinator.speakStatus('No previous description available.');
+      return;
+    }
+    await _speakText(text, _currentGeneration);
+  }
+
+  Future<void> _speakText(String text, int generation) async {
+    if (!preferencesService.autoRead) {
+      await speechFeedbackCoordinator.speakResult(text, autoRead: false);
+      if (generation == _currentGeneration && _state != OperationState.error) {
+        _setState(OperationState.idle);
+      }
+      return;
+    }
+    await speechFeedbackCoordinator.speakResult(
+      text,
+      autoRead: true,
+      onBegin: () {
+        if (generation != _currentGeneration) return;
+        _state = OperationState.speaking;
+        notifyListeners();
+      },
+    );
+    if (generation != _currentGeneration) return;
+    _setState(OperationState.idle);
+  }
+
+  Future<void> _handleError(Object e) async {
     final appEx = AppException.fromError(e);
     if (appEx.code == ErrorCode.operationCancelled) {
-      // Normal cancellation: do not speak an error to user
       _setState(OperationState.idle);
       return;
     }
@@ -512,7 +649,37 @@ class AgentCoordinator extends ChangeNotifier {
     }
 
     _errorMessage = appEx.userMessage;
-    _setState(OperationState.error, announcement: appEx.userMessage);
-    ttsService.speak(appEx.userMessage);
+    _state = OperationState.error;
+    notifyListeners();
+    unawaited(earconService.play(Earcon.error));
+    if (preferencesService.autoRead) {
+      await speechFeedbackCoordinator.speakError(appEx.userMessage, autoRead: true);
+    }
+  }
+
+  @visibleForTesting
+  void debugSetOperationState(OperationState value) {
+    _state = value;
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void debugSetActiveWork(ActiveWork? work) {
+    _activeWork = work;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _currentGeneration++;
+    _activeCancelToken?.cancel('Disposed');
+    _activeCancelToken = null;
+    speechService.cancel();
+    ttsService.stop();
+    unawaited(ocrService.dispose());
+    unawaited(cameraService.dispose());
+    unawaited(earconService.stopLoop());
+    ttsService.dispose();
+    super.dispose();
   }
 }

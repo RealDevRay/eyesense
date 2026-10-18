@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  EyeSense  stacked lockup. Mark above wordmark, optically centred.
+  Use in square placements: social avatars, posters, slide title cards.
+
+  Convert text to outlines before distributing outside the app.
+  Minimum width: 80 px.
+
+  For light backgrounds, swap:
+    #F7F8F8 -> #14171D
+    #FFC247 -> #8A5A00
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" width="200" height="150"
+     role="img" aria-label="EyeSense">
+  <title>EyeSense</title>
+
+  <!-- Mark, centred on x=100, shifted left by 12 so the emanation reads as optically centred -->
+  <g transform="translate(56, 6)">
+    <g fill="none" stroke="#FFC247" stroke-width="5" stroke-linecap="round">
+      <path d="M 28.23 20.67 A 14 14 0 0 1 28.23 43.33"/>
+      <path d="M 32.93 14.20 A 22 22 0 0 1 32.93 49.80"/>
+      <path d="M 37.63 7.73  A 30 30 0 0 1 37.63 56.27"/>
+    </g>
+    <circle cx="20" cy="32" r="6" fill="#FFC247"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="100" y="118" text-anchor="middle"
+        font-family="Atkinson Hyperlegible, Atkinson Hyperlegible Next, Inter, Segoe UI, sans-serif"
+        font-size="32" font-weight="700" letter-spacing="-0.16">
+    <tspan fill="#F7F8F8">Eye</tspan><tspan fill="#FFC247">Sense</tspan>
+  </text>
+</svg>

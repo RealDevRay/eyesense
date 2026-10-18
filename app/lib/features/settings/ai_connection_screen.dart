@@ -197,25 +197,27 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
               style: theme.textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
-            RadioListTile<ProviderMode>(
-              activeColor: colorScheme.primary,
-              title: const Text('EyeSense service (Hosted prototype)'),
-              subtitle: const Text('Connects through the secure EyeSense Worker proxy.'),
-              value: ProviderMode.hosted,
+            RadioGroup<ProviderMode>(
               groupValue: _selectedMode,
               onChanged: (val) {
                 if (val != null) setState(() => _selectedMode = val);
               },
-            ),
-            RadioListTile<ProviderMode>(
-              activeColor: colorScheme.primary,
-              title: const Text('Use my Groq key (BYOK mode)'),
-              subtitle: const Text('Direct device-to-Groq connection using your own account.'),
-              value: ProviderMode.byok,
-              groupValue: _selectedMode,
-              onChanged: (val) {
-                if (val != null) setState(() => _selectedMode = val);
-              },
+              child: Column(
+                children: [
+                  RadioListTile<ProviderMode>(
+                    activeColor: colorScheme.primary,
+                    title: const Text('EyeSense service (Hosted prototype)'),
+                    subtitle: const Text('Connects through the secure EyeSense Worker proxy.'),
+                    value: ProviderMode.hosted,
+                  ),
+                  RadioListTile<ProviderMode>(
+                    activeColor: colorScheme.primary,
+                    title: const Text('Use my Groq key (BYOK mode)'),
+                    subtitle: const Text('Direct device-to-Groq connection using your own account.'),
+                    value: ProviderMode.byok,
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             if (_selectedMode == ProviderMode.byok) ...[
@@ -283,73 +285,84 @@ class _AiConnectionScreenState extends State<AiConnectionScreen> {
                 ),
               ],
             ] else ...[
-              Text(
-                'Cloudflare Worker API URL',
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _workerUrlController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Worker Base URL',
-                  hintText: 'https://eyesense-api.<subdomain>.workers.dev',
-                ),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
+              ExpansionTile(
+                title: const Text('Advanced'),
                 children: [
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colorScheme.primary,
-                      foregroundColor: colorScheme.onPrimary,
-                      minimumSize: const Size(88, AppTheme.minTouchTarget),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Cloudflare Worker API URL',
+                      style: theme.textTheme.titleMedium,
                     ),
-                    icon: _isTestingWorker
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: colorScheme.onPrimary,
-                            ),
-                          )
-                        : const Icon(Icons.cloud_done_outlined, size: 20),
-                    label: const Text('Test Worker Connection'),
-                    onPressed: _isTestingWorker ? null : _testWorker,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _workerUrlController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Worker Base URL',
+                      hintText: 'https://eyesense-api.<subdomain>.workers.dev',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.primary,
+                          foregroundColor: colorScheme.onPrimary,
+                          minimumSize: const Size(88, AppTheme.minTouchTarget),
+                        ),
+                        icon: _isTestingWorker
+                            ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: colorScheme.onPrimary,
+                                ),
+                              )
+                            : const Icon(Icons.cloud_done_outlined, size: 20),
+                        label: const Text('Test Worker Connection'),
+                        onPressed: _isTestingWorker ? null : _testWorker,
+                      ),
+                    ],
+                  ),
+                  if (_workerTestStatusMessage != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      _workerTestStatusMessage!,
+                      style: TextStyle(
+                        color: _workerTestSuccess == true
+                            ? colorScheme.primary
+                            : _workerTestSuccess == false
+                                ? colorScheme.error
+                                : colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Prototype Demo Token',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _demoTokenController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Demo Access Token',
+                      hintText: 'Enter prototype bearer token',
+                    ),
                   ),
                 ],
-              ),
-              if (_workerTestStatusMessage != null) ...[
-                const SizedBox(height: 10),
-                Text(
-                  _workerTestStatusMessage!,
-                  style: TextStyle(
-                    color: _workerTestSuccess == true
-                        ? colorScheme.primary
-                        : _workerTestSuccess == false
-                            ? colorScheme.error
-                            : colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 20),
-              Text(
-                'Prototype Demo Token',
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _demoTokenController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Demo Access Token',
-                  hintText: 'Enter prototype bearer token',
-                ),
               ),
             ],
             const SizedBox(height: 36),

@@ -38,9 +38,14 @@ class CredentialService {
     await _storage.delete(key: _keyUserGroqApiKey);
   }
 
+  /// Secure storage wins. A non-empty `--dart-define=HOSTED_ACCESS_TOKEN`
+  /// is an internal-build fallback and must not be used for a public APK.
+  /// With no stored token and no define, this returns null and hosted mode
+  /// fails closed.
   Future<String?> getDemoAccessToken() async {
     final token = await _storage.read(key: _keyDemoAccessToken);
     if (token != null && token.isNotEmpty) return token;
+    if (AppConfig.defaultDemoAccessToken.isEmpty) return null;
     return AppConfig.defaultDemoAccessToken;
   }
 

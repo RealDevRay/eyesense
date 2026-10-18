@@ -61,6 +61,7 @@ class StubVisionApiService implements VisionApiService {
     required String base64Jpeg,
     required String language,
     dynamic cancelToken,
+    Duration? timeout,
   }) async {
     return const SceneResult(
       summary: 'Stub scene description',
@@ -78,6 +79,7 @@ class StubVisionApiService implements VisionApiService {
     required String question,
     required String language,
     dynamic cancelToken,
+    Duration? timeout,
   }) async {
     return const SceneResult(
       summary: 'Stub question answer',
@@ -152,7 +154,7 @@ void main() {
       await coordinator.executeAskQuestion(longQuestion);
 
       expect(coordinator.state, OperationState.error);
-      expect(coordinator.errorMessage, contains('exceeds 300 characters'));
+      expect(coordinator.errorMessage, contains('longer than 300 characters'));
     });
 
     test('voice ask handles noSpeech outcome by returning to idle with explanation', () async {
