@@ -1,8 +1,16 @@
 # EyeSense MVP remediation and provider-selection guide
 
+> **SUPERSEDED — 18 October 2026.** Do not use this document for sequencing or status.
+>
+> **The source of truth is [`docs/implementation-plan.md`](implementation-plan.md).**
+>
+> This guide is retained for two things it still does best: the phased analysis of what needed fixing, and the provider economics in §10. Both are referenced from the current plan.
+>
+> Two warnings if you read on. First, the status line below is **stale**: a substantial amount of Phases 0–5 has been implemented since this was written. The verified position, established by reading the code, is in `implementation-plan.md` §1. Second, the scope lock in §1 ("do not add ... physical triggers") conflicts with the blind-first experience work now planned; that conflict is resolved in `implementation-plan.md` §2.
+
 Prepared: 16 October 2026. Provider documentation checked on this date.
 
-**Status:** implementation plan, not a record of completed fixes. No application or Worker behavior was changed when this guide was generated.
+**Status (stale — see the notice above):** implementation plan, not a record of completed fixes. No application or Worker behavior was changed when this guide was generated.
 
 ## 1. Outcome and scope
 
