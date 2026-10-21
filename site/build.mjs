@@ -146,7 +146,7 @@ for (const lang of languages) {
   built++;
 }
 
-for (const asset of ["styles.css", "mark.svg"]) {
+for (const asset of ["styles.css", "mark.svg", "downloads.json"]) {
   await copyFile(join(here, asset), join(out, asset));
 }
 

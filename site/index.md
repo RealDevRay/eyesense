@@ -26,7 +26,19 @@ TalkBack users can use normal focus and activation gestures. Low-vision users ca
 
 ## Pilot access
 
-The ten-user pilot is **supervised and not yet open for independent use**. There is no public app download or sign-up form on this site. Cloud vision access and real-device accessibility must pass before invitations are issued.
+The ten-user pilot is **supervised and not yet open for independent use**. A debug/test download is available below for developer evaluation, not a production launch or pilot approval. Cloud vision access and real-device accessibility must pass before participant sessions. There is no sign-up form on this site.
+
+### Download the Android debug test build
+
+[Download EyeSense 1.0.0 debug APK — Android 7.0 or newer, 214 MiB](/download/android-debug)
+
+This link opens GitHub's release download. **Debug/test-signed, version 1.0.0+1; use a dedicated test phone and non-sensitive objects.** The APK has no supplied API key or hosted access token. Configure your connection securely in Settings. **Groq image tests returned 403; cloud vision is not verified. Physical-phone TalkBack testing is still pending.** It is not for navigation, obstacle detection or medical decisions.
+
+Read the [debug release notes and source information](https://github.com/RealDevRay/eyesense/releases/tag/pilot-debug-2026-10-21) before installing. Android may ask you to allow installation from your browser/file manager; do so only if you trust this build, and turn that permission off afterwards. Do not disable device security scanning. Updating an installation signed with a different key can require uninstalling and losing local settings/keys.
+
+[Download SHA256SUMS](https://github.com/RealDevRay/eyesense/releases/download/pilot-debug-2026-10-21/SHA256SUMS). Expected APK SHA-256:
+
+`bcaaceba730891703102ca2f20008ce9c35f3845d39ec373b6ce18c7b022935a`
 
 For pilot questions or accessible information, [email the EyeSense team](mailto:info@devray.qzz.io). Do not email API keys, personal photographs, medical information or identity documents. Email is handled by your email provider; this site does not collect form submissions.
 

@@ -7,6 +7,7 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "redirects": [
+      { "source": "/download/android-debug", "destination": "https://github.com/RealDevRay/eyesense/releases/download/pilot-debug-2026-10-21/eyesense-1.0.0-pilot-debug.apk", "permanent": false },
     { "source": "/privacy/history", "destination": "/privacy", "permanent": false },
     { "source": "/sw/privacy/history", "destination": "/sw/privacy", "permanent": false },
     { "source": "/privacy-policy", "destination": "/privacy", "permanent": true },

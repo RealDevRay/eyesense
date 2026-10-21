@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0+1",
+  "channel": "debug",
+  "tag": "pilot-debug-2026-10-21",
+  "sourceCommit": "b27f41cdcb2d0017966164dc09cc724b7bf5875c",
+  "assetName": "eyesense-1.0.0-pilot-debug.apk",
+  "sizeBytes": 224341723,
+  "sha256": "bcaaceba730891703102ca2f20008ce9c35f3845d39ec373b6ce18c7b022935a",
+  "minAndroidApi": 24,
+  "releaseUrl": "https://github.com/RealDevRay/eyesense/releases/tag/pilot-debug-2026-10-21",
+  "downloadUrl": "https://github.com/RealDevRay/eyesense/releases/download/pilot-debug-2026-10-21/eyesense-1.0.0-pilot-debug.apk",
+  "checksumUrl": "https://github.com/RealDevRay/eyesense/releases/download/pilot-debug-2026-10-21/SHA256SUMS"
+}

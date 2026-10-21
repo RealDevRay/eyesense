@@ -8,6 +8,7 @@ import { createPreviewServer } from "../preview.mjs";
 const site = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = join(site, "dist");
 const config = JSON.parse(await readFile(join(site, "vercel.json"), "utf8"));
+const download = JSON.parse(await readFile(join(site, "downloads.json"), "utf8"));
 const routes = new Map([
   ["/", "index.html"],
   ["/privacy", "privacy.html"],
@@ -87,7 +88,7 @@ test("legal tables retain table, row and header semantics", async () => {
 
 test("configured legacy links redirect to valid pages", async () => {
   for (const rule of config.redirects) {
-    assert.ok(routes.has(rule.destination));
+    assert.ok(routes.has(rule.destination) || rule.destination === download.downloadUrl);
     const response = await fetch(`${base}${rule.source}`, { redirect: "manual" });
     assert.equal(response.status, rule.permanent ? 308 : 307);
     assert.equal(response.headers.get("location"), rule.destination);
@@ -122,6 +123,39 @@ test("preview rejects malformed paths, traversal and unpublished files", async (
     assert.equal(response.status, 404, path);
     await response.arrayBuffer();
   }
+});
+
+test("debug download redirects to the pinned GitHub prerelease asset", async () => {
+  assert.equal(download.channel, "debug");
+  assert.equal(download.minAndroidApi, 24);
+  assert.match(download.sha256, /^[a-f0-9]{64}$/);
+  assert.match(download.sourceCommit, /^[a-f0-9]{40}$/);
+  assert.ok(Number.isSafeInteger(download.sizeBytes) && download.sizeBytes > 0);
+  const root = "https://github.com/RealDevRay/eyesense/releases";
+  assert.equal(download.downloadUrl, `${root}/download/${download.tag}/${download.assetName}`);
+  assert.equal(download.releaseUrl, `${root}/tag/${download.tag}`);
+  assert.equal(download.checksumUrl, `${root}/download/${download.tag}/SHA256SUMS`);
+  const response = await fetch(`${base}/download/android-debug`, { redirect: "manual" });
+  assert.equal(response.status, 307);
+  assert.equal(response.headers.get("location"), download.downloadUrl);
+  for (const file of ["index.html", "sw/index.html"]) {
+    const html = await readFile(join(dist, file), "utf8");
+    assert.match(html, /href="\/download\/android-debug"/);
+    assert.ok(html.includes(download.releaseUrl));
+    assert.ok(html.includes(download.checksumUrl));
+    assert.ok(html.includes(download.sha256));
+    assert.ok(html.includes(download.version));
+    assert.match(html, /403/);
+    assert.match(html, /TalkBack/);
+    assert.doesNotMatch(html, /no public app download|haina upakuaji wa programu/);
+  }
+});
+
+test("public download metadata matches the build input", async () => {
+  const response = await fetch(`${base}/downloads.json`);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /^application\/json/);
+  assert.deepEqual(await response.json(), download);
 });
 
 test("Vercel builds only dist with checks and no app-facing API", () => {

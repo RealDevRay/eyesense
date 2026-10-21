@@ -8,6 +8,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const config = JSON.parse(await readFile(join(here, "vercel.json"), "utf8"));
 const types = {
   ".html": "text/html; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".svg": "image/svg+xml",
   ".ttf": "font/ttf",

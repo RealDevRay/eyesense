@@ -26,7 +26,19 @@ Watumiaji wa TalkBack wanaweza kutumia ishara za kawaida za kuchagua na kuamsha 
 
 ## Kushiriki majaribio
 
-Majaribio ya watu kumi **yatasimamiwa na bado hayajafunguliwa kwa matumizi ya kujitegemea**. Tovuti hii haina upakuaji wa programu wala fomu ya kujisajili. Ufikiaji wa AI na ufikivu kwenye vifaa halisi lazima vithibitishwe kabla ya mialiko.
+Majaribio ya watu kumi **yatasimamiwa na bado hayajafunguliwa kwa matumizi ya kujitegemea**. Toleo la debug/test linapatikana hapa chini kwa tathmini ya wasanidi, si uzinduzi rasmi wala idhini ya majaribio. Ufikiaji wa AI na ufikivu kwenye vifaa halisi lazima vithibitishwe kabla ya washiriki. Hakuna fomu ya kujisajili kwenye tovuti hii.
+
+### Pakua toleo la Android la majaribio ya debug
+
+[Pakua EyeSense 1.0.0 debug APK — Android 7.0 au mpya zaidi, 214 MiB](/download/android-debug)
+
+Kiungo hiki kinafungua upakuaji wa toleo kwenye GitHub. **Ni debug iliyosainiwa kwa majaribio, toleo 1.0.0+1; tumia simu ya majaribio na vitu visivyo vya siri.** Hakuna ufunguo wa API wala tokeni ya seva iliyotolewa ndani ya APK. Sanidi muunganisho kwa usalama katika Mipangilio. **Majaribio ya picha ya Groq yalirudisha 403; AI ya mtandaoni haijathibitishwa. TalkBack kwenye simu halisi bado inahitaji kupimwa.** Si ya urambazaji, kutambua vizuizi wala maamuzi ya matibabu.
+
+Soma [maelezo ya toleo la debug na msimbo wake](https://github.com/RealDevRay/eyesense/releases/tag/pilot-debug-2026-10-21) kabla ya kusakinisha. Android inaweza kuomba uruhusu usakinishaji kutoka kivinjari au kidhibiti faili; ruhusu tu ukiamini toleo hili, kisha zima ruhusa hiyo. Usizime ukaguzi wa usalama wa kifaa. Toleo la zamani likiwa na sahihi tofauti, unaweza kuhitaji kuliondoa na kupoteza mipangilio/funguo za kifaani.
+
+[Pakua SHA256SUMS](https://github.com/RealDevRay/eyesense/releases/download/pilot-debug-2026-10-21/SHA256SUMS). SHA-256 ya APK inayotarajiwa:
+
+`bcaaceba730891703102ca2f20008ce9c35f3845d39ec373b6ce18c7b022935a`
 
 Kwa maswali au taarifa zinazofikika, [tuma barua pepe kwa timu ya EyeSense](mailto:info@devray.qzz.io). Usitume funguo za API, picha binafsi, taarifa za matibabu au nyaraka za utambulisho. Barua pepe inashughulikiwa na mtoa huduma wako wa barua pepe; tovuti hii haikusanyi fomu.
 
