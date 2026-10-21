@@ -33,9 +33,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
-    _safetyAcknowledged = widget.coordinator.preferencesService.hasAcknowledgedSafety;
+    _safetyAcknowledged =
+        widget.coordinator.preferencesService.hasAcknowledgedSafety;
     if (!widget.coordinator.preferencesService.hasCompletedOnboarding) {
-      _currentStep = widget.coordinator.preferencesService.onboardingStep.clamp(0, _totalSteps - 1);
+      _currentStep = widget.coordinator.preferencesService.onboardingStep.clamp(
+        0,
+        _totalSteps - 1,
+      );
     } else {
       _currentStep = 0;
     }
@@ -43,7 +47,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _speakSafetyBriefing() {
-    widget.coordinator.speechFeedbackCoordinator.speakResult(spokenSafetyBriefing());
+    widget.coordinator.speechFeedbackCoordinator.speakResult(
+      spokenSafetyBriefing(),
+    );
   }
 
   void _goToStep(int step) {
@@ -56,7 +62,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (step == _safetyStep) _speakSafetyBriefing();
   }
 
-  bool get _blockedBySafety => _currentStep == _safetyStep && !_safetyAcknowledged;
+  bool get _blockedBySafety =>
+      _currentStep == _safetyStep && !_safetyAcknowledged;
 
   void _explainSafetyGate() {
     widget.coordinator.speechFeedbackCoordinator.speakResult(
@@ -112,7 +119,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           'Camera capture test failed. Please try again.',
         );
       } finally {
-        await widget.coordinator.cameraService.deleteTemporaryCapture(captured?.file);
+        await widget.coordinator.cameraService.deleteTemporaryCapture(
+          captured?.file,
+        );
       }
     } else {
       widget.coordinator.speechFeedbackCoordinator.speakResult(
@@ -131,28 +140,35 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return 'Safety and limits. ${spokenSafetyBriefing()} '
             'Select I understand these limits to continue.';
       case 2:
-        return 'How to Interact. EyeSense works with TalkBack. '
-            'Explore the screen to hear button labels. '
-            'Double-tap anywhere to activate the selected button. '
-            'Use Start voice command at any time for one-touch voice tasks. '
-            'The Stop button is always available to cancel speech or active tasks.';
+        return 'How to Interact. Choose Describe scene, Read text, or Ask a question. '
+            'Voice commands are optional. With TalkBack, explore or swipe to hear button labels, '
+            'then double-tap to activate the selected button using normal TalkBack gestures. '
+            'EyeSense has no hidden app gestures. '
+            'Low-vision users and sighted helpers can open an optional camera preview for aiming. '
+            'The helper profile starts with spoken results on. '
+            'Use Stop to cancel speech or active tasks.';
       case 3:
         return 'Language and Speech. Select your preferred response language. '
             'English is the default. Kiswahili is also available.';
       case 4:
         return 'Privacy and Connection. How EyeSense processes data. '
-            'Read Text operates on the device. No images or text are sent over the network. '
-            'Describe and Ask send one captured snapshot and your question to your configured AI provider. '
-            'Requests sent to a cloud provider cannot be recalled. '
-            'Spoken commands use the device system speech service. '
-            'Bring-your-own-key mode uses your personal Groq API key. '
-            'Allow Cloud AI Analysis is required for Describe Scene and Ask Question.';
+            'Read Text recognises text on the device without uploading the image for OCR. '
+            'System speech recognition and text-to-speech may need internet; offline playback needs an installed offline voice. '
+            'Describe and Ask send one snapshot and, for Ask, your question. '
+            'Hosted mode uses the EyeSense Worker, then Groq. '
+            'Bring-your-own-key mode sends directly to your selected provider: Groq, OpenAI, Google Gemini, or Mistral. '
+            'You choose the provider and model; there is no fallback or silent image routing. '
+            'Each provider key is stored separately in encrypted local storage and uses your account quotas and billing. '
+            'Requests already received by a provider cannot be recalled. '
+            'Allow Cloud AI Analysis is required for Describe, Ask, and the optional generated sample image test. '
+            'Check key and model sends no photo and does not verify vision. '
+            'The sample test requires confirmation and sends one potentially billable call without using the camera or automatically saving settings.';
       case 5:
         return 'Practice Camera Capture. '
             'Let’s test taking a picture with the rear camera to make sure permissions are ready.';
       case 6:
         return 'Setup Complete. You are all set to use EyeSense. '
-            'You can always access this tutorial, change voices, or enter your personal Groq key in Settings.';
+            'You can return to this tutorial, change voices, or choose your AI provider, model, and personal key in Settings.';
       default:
         return 'EyeSense setup.';
     }
@@ -165,10 +181,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Welcome to EyeSense',
-              style: theme.textTheme.headlineMedium,
-            ),
+            Text('Welcome to EyeSense', style: theme.textTheme.headlineMedium),
             const SizedBox(height: 16),
             Text(
               'EyeSense turns camera images into spoken descriptions and reads printed text aloud.\n\n'
@@ -197,7 +210,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               onChanged: (val) {
                 setState(() => _safetyAcknowledged = val ?? false);
                 if (_safetyAcknowledged) {
-                  widget.coordinator.preferencesService.recordSafetyAcknowledgement();
+                  widget.coordinator.preferencesService
+                      .recordSafetyAcknowledgement();
                 }
               },
               title: const Text(
@@ -212,17 +226,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'How to Interact',
-              style: theme.textTheme.headlineMedium,
-            ),
+            Text('How to Interact', style: theme.textTheme.headlineMedium),
             const SizedBox(height: 16),
             Text(
-              'EyeSense works seamlessly with TalkBack:\n\n'
-              '1. Explore the screen to hear button labels.\n'
-              '2. Double-tap anywhere to activate the selected button.\n'
-              '3. Use "Start voice command" at any time for one-touch voice tasks.\n'
-              '4. The Stop button is always available to cancel speech or active tasks.',
+              'Choose a task first: Describe scene, Read text, or Ask a question. Voice commands are optional.\n\n'
+              'With TalkBack, explore or swipe to hear button labels, then double-tap to activate the selected button. These are normal TalkBack gestures; EyeSense has no hidden app gestures.\n\n'
+              'Low-vision users and sighted helpers can open an optional camera preview for aiming. The helper profile starts with spoken results on. There are no gyroscope or accelerometer aiming cues.\n\n'
+              'Use Stop to cancel speech or active tasks.',
               style: theme.textTheme.bodyLarge,
             ),
           ],
@@ -232,10 +242,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Language & Speech',
-              style: theme.textTheme.headlineMedium,
-            ),
+            Text('Language & Speech', style: theme.textTheme.headlineMedium),
             const SizedBox(height: 16),
             Text(
               'Select your preferred response language:',
@@ -249,7 +256,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 setState(() {});
                 widget.coordinator.preferencesService.setLanguage(val);
                 widget.coordinator.speechFeedbackCoordinator.speakResult(
-                  val == 'sw' ? 'Lugha imewekwa kuwa Kiswahili.' : 'Language set to English.',
+                  val == 'sw'
+                      ? 'Lugha imewekwa kuwa Kiswahili.'
+                      : 'Language set to English.',
                 );
               },
               child: const Column(
@@ -258,10 +267,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     title: Text('English (Default)'),
                     value: 'en',
                   ),
-                  RadioListTile<String>(
-                    title: Text('Kiswahili'),
-                    value: 'sw',
-                  ),
+                  RadioListTile<String>(title: Text('Kiswahili'), value: 'sw'),
                 ],
               ),
             ),
@@ -272,29 +278,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Privacy & Connection',
-              style: theme.textTheme.headlineMedium,
-            ),
+            Text('Privacy & Connection', style: theme.textTheme.headlineMedium),
             const SizedBox(height: 16),
             Text(
               'How EyeSense processes data:\n\n'
-              '• Read Text: Operates 100% on-device (offline OCR). No images or text are sent over the network.\n'
-              '• Describe & Ask: Sends one captured snapshot and your question to your configured AI provider (EyeSense Hosted Worker proxy or direct Groq BYOK).\n'
-              '• Upstream Processing: Requests sent to cloud providers are subject to provider processing and commercial retention terms. Once received by the cloud provider, requests cannot be recalled.\n'
-              '• Speech Recognition: Spoken commands use the device system speech service.\n'
-              '• BYOK mode: Uses your personal Groq API key and account quotas.',
+              '• Read Text: OCR runs on-device without uploading the image. System speech recognition and text-to-speech may need internet; offline playback needs an installed offline voice.\n'
+              '• Describe & Ask: Sends one snapshot and, for Ask, your question. Hosted mode goes through the EyeSense Worker to Groq only. BYOK goes directly to your selected provider: Groq, OpenAI, Google Gemini, or Mistral.\n'
+              '• Your choice: The provider and model are explicit. There is no fallback or silent image routing. BYOK keys are stored separately per provider in encrypted local storage; your account quotas and billing apply.\n'
+              '• Provider processing: The selected provider controls its processing and retention. Requests already received cannot be recalled.\n'
+              '• Optional checks: Check key and model calls /models without a photo; it does not verify vision. The generated sample image test needs cloud consent and a separate confirmation: one potentially billable call, no retry, no camera, and no automatic saving of connection settings.',
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
             ),
             const SizedBox(height: 16),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Allow Cloud AI Analysis', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('Required for Describe Scene and Ask Question'),
+              title: const Text(
+                'Allow Cloud AI Analysis',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: const Text(
+                'Required for Describe, Ask, and the optional generated sample image test',
+              ),
               value: widget.coordinator.preferencesService.cloudConsentGranted,
               onChanged: (val) {
                 setState(() {});
-                widget.coordinator.preferencesService.setCloudConsentGranted(val);
+                widget.coordinator.preferencesService.setCloudConsentGranted(
+                  val,
+                );
               },
             ),
           ],
@@ -315,7 +325,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
             const SizedBox(height: 24),
             AccessibleActionButton(
-              label: _practiceCaptureSuccess ? 'Take Another Picture' : 'Practice Capture',
+              label: _practiceCaptureSuccess
+                  ? 'Take Another Picture'
+                  : 'Practice Capture',
               icon: Icons.camera_alt,
               onPressed: _requestCameraPermissionAndPractice,
             ),
@@ -329,7 +341,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     size: AppTheme.iconStandard,
                   ),
                   const SizedBox(width: 8),
-                  const Text('Camera tested and ready!', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Camera tested and ready!',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
             ],
@@ -340,10 +355,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Setup Complete',
-              style: theme.textTheme.headlineMedium,
-            ),
+            Text('Setup Complete', style: theme.textTheme.headlineMedium),
             const SizedBox(height: 16),
             Text(
               'You are all set to use EyeSense!\n\n'
@@ -367,7 +379,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           if (_currentStep != _safetyStep)
             TextButton(
               onPressed: _skip,
-              child: const Text('Skip', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'Skip',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
         ],
       ),
@@ -377,22 +392,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           child: Column(
             children: [
               Expanded(
-                child: SingleChildScrollView(
-                  child: _buildStepContent(),
-                ),
+                child: SingleChildScrollView(child: _buildStepContent()),
               ),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, AppTheme.minTouchTarget + 8),
+                    minimumSize: const Size(
+                      double.infinity,
+                      AppTheme.minTouchTarget + 8,
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () {
-                    widget.coordinator.speechFeedbackCoordinator.speakResult(_narration());
+                    widget.coordinator.speechFeedbackCoordinator.speakResult(
+                      _narration(),
+                    );
                   },
-                  child: const Text('Read this aloud', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Read this aloud',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -403,30 +424,51 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     width: double.infinity,
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, AppTheme.minTouchTarget + 8),
+                        minimumSize: const Size(
+                          double.infinity,
+                          AppTheme.minTouchTarget + 8,
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       onPressed: _previousStep,
-                      child: const Text('Back', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'Back',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               SizedBox(
                 width: double.infinity,
                 child: Semantics(
-                  hint: _blockedBySafety ? 'Confirm you understand the limits first' : null,
+                  hint: _blockedBySafety
+                      ? 'Confirm you understand the limits first'
+                      : null,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, AppTheme.minTouchTarget + 8),
+                      minimumSize: const Size(
+                        double.infinity,
+                        AppTheme.minTouchTarget + 8,
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     // Left enabled deliberately. A disabled button announces
                     // itself as dimmed and gives no reason, which strands a
                     // screen-reader user with no way to find out why.
-                    onPressed: _blockedBySafety ? _explainSafetyGate : _nextStep,
+                    onPressed: _blockedBySafety
+                        ? _explainSafetyGate
+                        : _nextStep,
                     child: Text(
-                      _currentStep == _totalSteps - 1 ? 'Get Started' : 'Continue',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      _currentStep == _totalSteps - 1
+                          ? 'Get Started'
+                          : 'Continue',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),

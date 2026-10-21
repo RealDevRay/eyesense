@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:eyesense/agents/agent_coordinator.dart';
+import 'package:eyesense/core/config/app_config.dart';
 import 'package:eyesense/models/app_operation.dart';
 import 'package:eyesense/models/scene_result.dart';
 import 'package:eyesense/services/credential_service.dart';
@@ -133,6 +134,7 @@ void main() {
     setUp(() async {
       SharedPreferences.setMockInitialValues({
         'cloud_consent_granted': true,
+        'terms_version_accepted': AppConfig.termsVersion,
         'app_language': 'en',
       });
       prefs = await PreferencesService.create();
@@ -188,16 +190,22 @@ void main() {
       expect(coordinator.state, OperationState.idle);
     });
 
-    test('voice ask handles permissionDenied outcome by setting error message', () async {
-      speech.outcomeToEmit = const SpeechOutcome(
-        type: SpeechOutcomeType.permissionDenied,
-        errorMessage: 'Microphone denied',
-      );
+    test(
+      'voice ask handles permissionDenied outcome by setting error message',
+      () async {
+        speech.outcomeToEmit = const SpeechOutcome(
+          type: SpeechOutcomeType.permissionDenied,
+          errorMessage: 'Microphone denied',
+        );
 
-      await coordinator.startVoiceAsk();
+        await coordinator.startVoiceAsk();
 
-      expect(coordinator.state, OperationState.error);
-      expect(coordinator.errorMessage, contains('Microphone permission was denied'));
-    });
+        expect(coordinator.state, OperationState.error);
+        expect(
+          coordinator.errorMessage,
+          contains('Microphone permission was denied'),
+        );
+      },
+    );
   });
 }

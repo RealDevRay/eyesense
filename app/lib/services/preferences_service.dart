@@ -1,6 +1,7 @@
 import 'package:eyesense/core/config/app_config.dart';
 import 'package:eyesense/core/speech/speech_rate.dart';
 import 'package:eyesense/models/app_operation.dart';
+import 'package:eyesense/models/direct_ai_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -39,7 +40,8 @@ class PreferencesService extends ChangeNotifier {
     return PreferencesService(prefs);
   }
 
-  String get apiBaseUrl => _prefs.getString(_keyApiBaseUrl) ?? AppConfig.defaultApiBaseUrl;
+  String get apiBaseUrl =>
+      _prefs.getString(_keyApiBaseUrl) ?? AppConfig.defaultApiBaseUrl;
   Future<void> setApiBaseUrl(String url) async {
     await _prefs.setString(_keyApiBaseUrl, url.trim());
     notifyListeners();
@@ -51,7 +53,8 @@ class PreferencesService extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool get hasCompletedOnboarding => _prefs.getBool(_keyCompletedOnboarding) ?? false;
+  bool get hasCompletedOnboarding =>
+      _prefs.getBool(_keyCompletedOnboarding) ?? false;
   Future<void> setCompletedOnboarding(bool val) async {
     await _prefs.setBool(_keyCompletedOnboarding, val);
     notifyListeners();
@@ -65,8 +68,11 @@ class PreferencesService extends ChangeNotifier {
 
   double get speechRate {
     final stored = _prefs.getDouble(_keySpeechRate) ?? 1.0;
-    return stored.clamp(SpeechRateScale.minProduct, SpeechRateScale.maxProduct).toDouble();
+    return stored
+        .clamp(SpeechRateScale.minProduct, SpeechRateScale.maxProduct)
+        .toDouble();
   }
+
   Future<void> setSpeechRate(double rate) async {
     await _prefs.setDouble(_keySpeechRate, rate);
     notifyListeners();
@@ -90,18 +96,24 @@ class PreferencesService extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool get diagnosticLoggingEnabled => _prefs.getBool(_keyDiagnosticLogging) ?? false;
+  bool get diagnosticLoggingEnabled =>
+      _prefs.getBool(_keyDiagnosticLogging) ?? false;
   Future<void> setDiagnosticLoggingEnabled(bool val) async {
     await _prefs.setBool(_keyDiagnosticLogging, val);
     notifyListeners();
   }
 
-  bool get cloudConsentGranted => _prefs.getBool(_keyCloudConsent) ?? false;
+  bool get cloudConsentGranted =>
+      (_prefs.getBool(_keyCloudConsent) ?? false) &&
+      acceptedTermsVersion == AppConfig.termsVersion;
   Future<void> setCloudConsentGranted(bool val) async {
     await _prefs.setBool(_keyCloudConsent, val);
     if (val) {
       await _prefs.setString(_keyTermsVersion, AppConfig.termsVersion);
-      await _prefs.setString(_keyTermsAcceptedAt, DateTime.now().toUtc().toIso8601String());
+      await _prefs.setString(
+        _keyTermsAcceptedAt,
+        DateTime.now().toUtc().toIso8601String(),
+      );
     }
     notifyListeners();
   }
@@ -113,7 +125,44 @@ class PreferencesService extends ChangeNotifier {
   }
 
   Future<void> setProviderMode(ProviderMode mode) async {
-    await _prefs.setString(_keyProviderMode, mode == ProviderMode.byok ? 'byok' : 'hosted');
+    await _prefs.setString(
+      _keyProviderMode,
+      mode == ProviderMode.byok ? 'byok' : 'hosted',
+    );
+    notifyListeners();
+  }
+
+  DirectAiProvider get directAiProvider {
+    final saved = _prefs.get('direct_ai_provider');
+    // Accept legacy indices; subsequent explicit saves use stable names.
+    if (saved is int && saved >= 0 && saved < DirectAiProvider.values.length) {
+      return DirectAiProvider.values[saved];
+    }
+    return DirectAiProvider.values.firstWhere(
+      (provider) => provider.name == saved,
+      orElse: () => DirectAiProvider.groq,
+    );
+  }
+
+  String visionModelFor(DirectAiProvider provider) =>
+      _prefs.getString('vision_model_${provider.name}') ??
+      provider.defaultModel;
+
+  Future<void> setDirectAiProvider(DirectAiProvider provider) async {
+    await _prefs.setString('direct_ai_provider', provider.name);
+    notifyListeners();
+  }
+
+  Future<void> setVisionModel(DirectAiProvider provider, String model) async {
+    final trimmed = model.trim();
+    if (trimmed.isEmpty ||
+        trimmed.length > 150 ||
+        RegExp(r'\s').hasMatch(trimmed)) {
+      throw ArgumentError(
+        'Enter a model ID without spaces (maximum 150 characters).',
+      );
+    }
+    await _prefs.setString('vision_model_${provider.name}', trimmed);
     notifyListeners();
   }
 
@@ -148,7 +197,10 @@ class PreferencesService extends ChangeNotifier {
         await _prefs.setBool(_keyEarcons, true);
         await _prefs.setBool(_keyAiming, true);
         await _prefs.setDouble(_keyPreferredTextScale, 1.0);
-        await _prefs.setString(_keyThemeMode, _prefs.getString(_keyThemeMode) ?? 'system');
+        await _prefs.setString(
+          _keyThemeMode,
+          _prefs.getString(_keyThemeMode) ?? 'system',
+        );
       case AssistanceProfile.lowVision:
         await _prefs.setBool(_keyAutoRead, true);
         await _prefs.setBool(_keyEarcons, false);
@@ -156,7 +208,7 @@ class PreferencesService extends ChangeNotifier {
         await _prefs.setDouble(_keyPreferredTextScale, 1.4);
         await _prefs.setString(_keyThemeMode, 'contrast');
       case AssistanceProfile.sightedAssistant:
-        await _prefs.setBool(_keyAutoRead, false);
+        await _prefs.setBool(_keyAutoRead, true);
         await _prefs.setBool(_keyEarcons, false);
         await _prefs.setBool(_keyAiming, false);
         await _prefs.setDouble(_keyPreferredTextScale, 1.0);
@@ -176,7 +228,8 @@ class PreferencesService extends ChangeNotifier {
     notifyListeners();
   }
 
-  double get preferredTextScale => _prefs.getDouble(_keyPreferredTextScale) ?? 1.0;
+  double get preferredTextScale =>
+      _prefs.getDouble(_keyPreferredTextScale) ?? 1.0;
 
   AppMode get appMode {
     switch (_prefs.getString(_keyAppMode)) {
@@ -198,8 +251,15 @@ class PreferencesService extends ChangeNotifier {
   String? get acceptedTermsAt => _prefs.getString(_keyTermsAcceptedAt);
 
   Future<void> recordTermsAcceptance() async {
+    // Accepting terms alone must not reactivate a legacy cloud opt-in.
+    if (!cloudConsentGranted) {
+      await _prefs.setBool(_keyCloudConsent, false);
+    }
     await _prefs.setString(_keyTermsVersion, AppConfig.termsVersion);
-    await _prefs.setString(_keyTermsAcceptedAt, DateTime.now().toUtc().toIso8601String());
+    await _prefs.setString(
+      _keyTermsAcceptedAt,
+      DateTime.now().toUtc().toIso8601String(),
+    );
     notifyListeners();
   }
 
@@ -213,7 +273,8 @@ class PreferencesService extends ChangeNotifier {
     notifyListeners();
   }
 
-  int get launchOrientationCount => _prefs.getInt(_keyLaunchOrientationCount) ?? 0;
+  int get launchOrientationCount =>
+      _prefs.getInt(_keyLaunchOrientationCount) ?? 0;
   Future<void> incrementLaunchOrientationCount() async {
     await _prefs.setInt(_keyLaunchOrientationCount, launchOrientationCount + 1);
   }

@@ -6,12 +6,14 @@ class OperationStatusWidget extends StatelessWidget {
   final OperationState state;
   final String? errorMessage;
   final VoidCallback? onDismissError;
+  final bool announceChanges;
 
   const OperationStatusWidget({
     super.key,
     required this.state,
     this.errorMessage,
     this.onDismissError,
+    this.announceChanges = true,
   });
 
   @override
@@ -22,27 +24,36 @@ class OperationStatusWidget extends StatelessWidget {
     final isError = state == OperationState.error;
     final isBusy = state != OperationState.idle && !isError;
 
-    final displayText = isError ? (errorMessage ?? 'Something went wrong') : state.localizedAnnouncement;
+    final displayText = isError
+        ? (errorMessage ?? 'Something went wrong')
+        : state.localizedAnnouncement;
 
-    final containerColor = isError ? colors.surfaceRaised : (isBusy ? colors.surfaceRaised : colors.surface);
+    final containerColor = isError
+        ? colors.surfaceRaised
+        : (isBusy ? colors.surfaceRaised : colors.surface);
     final borderColor = isError
         ? colors.error
         : isBusy
-            ? colors.accent
-            : colors.border;
+        ? colors.accent
+        : colors.border;
 
     return Semantics(
-      liveRegion: true,
+      liveRegion: announceChanges,
       readOnly: true,
       label: 'Status: $displayText',
       child: AnimatedContainer(
-        duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 180),
+        duration: reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 180),
         constraints: const BoxConstraints(minHeight: 72),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: containerColor,
           borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          border: Border.all(color: borderColor, width: isBusy || isError ? 2 : 1),
+          border: Border.all(
+            color: borderColor,
+            width: isBusy || isError ? 2 : 1,
+          ),
         ),
         child: Row(
           children: [
@@ -52,7 +63,12 @@ class OperationStatusWidget extends StatelessWidget {
                 child: SizedBox(
                   width: AppTheme.iconStandard,
                   height: AppTheme.iconStandard,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: colors.accent),
+                  child: ExcludeSemantics(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: colors.accent,
+                    ),
+                  ),
                 ),
               )
             else
@@ -65,11 +81,13 @@ class OperationStatusWidget extends StatelessWidget {
                 ),
               ),
             Expanded(
-              child: Text(
-                displayText,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: isError ? colors.error : colors.textPrimary,
-                  fontWeight: FontWeight.w700,
+              child: ExcludeSemantics(
+                child: Text(
+                  displayText,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: isError ? colors.error : colors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),

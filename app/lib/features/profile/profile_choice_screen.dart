@@ -15,7 +15,7 @@ class ProfileChoiceScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final suggested = MediaQuery.accessibleNavigationOf(context)
         ? AssistanceProfile.screenReader
-        : AssistanceProfile.sightedAssistant;
+        : null;
     return Scaffold(
       appBar: AppBar(title: const Text('How do you use EyeSense?')),
       body: ListView(
@@ -31,21 +31,21 @@ class ProfileChoiceScreen extends StatelessWidget {
             suggested,
             AssistanceProfile.screenReader,
             'I use a screen reader',
-            'Gestures, spoken results, and framing cues start on. The camera preview stays off.',
+            'Spoken results and image-quality cues start on. Use labelled buttons with TalkBack. No preview is needed.',
           ),
           _choice(
             context,
             suggested,
             AssistanceProfile.lowVision,
             'I have some usable vision',
-            'High contrast, larger type, and a camera preview with reserved space.',
+            'High contrast, larger type, and an optional camera preview to help you aim.',
           ),
           _choice(
             context,
             suggested,
             AssistanceProfile.sightedAssistant,
             'I am sighted and assisting someone',
-            'Spoken results start off. Every action stays available.',
+            'Help aim the camera and choose a task. Results are spoken so you can both hear them.',
           ),
         ],
       ),
@@ -54,7 +54,7 @@ class ProfileChoiceScreen extends StatelessWidget {
 
   Widget _choice(
     BuildContext context,
-    AssistanceProfile suggested,
+    AssistanceProfile? suggested,
     AssistanceProfile profile,
     String title,
     String subtitle,
@@ -65,7 +65,7 @@ class ProfileChoiceScreen extends StatelessWidget {
       child: FilledButton(
         onPressed: () async {
           await preferences.applyProfileDefaults(profile);
-          onChosen();
+          if (context.mounted) onChosen();
         },
         child: Align(
           alignment: Alignment.centerLeft,

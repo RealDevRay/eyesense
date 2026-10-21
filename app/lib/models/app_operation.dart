@@ -56,7 +56,7 @@ enum ProviderMode {
       case ProviderMode.hosted:
         return 'EyeSense service';
       case ProviderMode.byok:
-        return 'Use my Groq key';
+        return 'Use my own AI provider';
     }
   }
 }

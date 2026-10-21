@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:eyesense/core/config/app_config.dart';
+import 'package:eyesense/models/direct_ai_provider.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class CredentialService {
@@ -9,22 +10,20 @@ class CredentialService {
   final FlutterSecureStorage _storage;
   final Dio _dio;
 
-  CredentialService({
-    FlutterSecureStorage? storage,
-    Dio? dio,
-  })  : _storage = storage ??
-            const FlutterSecureStorage(
-              aOptions: AndroidOptions(
-                encryptedSharedPreferences: true,
-              ),
+  CredentialService({FlutterSecureStorage? storage, Dio? dio})
+    : _storage =
+          storage ??
+          const FlutterSecureStorage(
+            aOptions: AndroidOptions(encryptedSharedPreferences: true),
+          ),
+      _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: const Duration(seconds: 5),
+              receiveTimeout: const Duration(seconds: 5),
             ),
-        _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 5),
-                receiveTimeout: const Duration(seconds: 5),
-              ),
-            );
+          );
 
   Future<String?> getUserGroqApiKey() async {
     return await _storage.read(key: _keyUserGroqApiKey);
@@ -36,6 +35,59 @@ class CredentialService {
 
   Future<void> clearUserGroqApiKey() async {
     await _storage.delete(key: _keyUserGroqApiKey);
+  }
+
+  /// Provider names keep keys isolated, including Mistral, without migrating
+  /// or reusing the legacy Groq credential.
+  Future<String?> getProviderApiKey(DirectAiProvider provider) {
+    if (provider == DirectAiProvider.groq) return getUserGroqApiKey();
+    return _storage.read(key: 'user_${provider.name}_api_key');
+  }
+
+  Future<void> setProviderApiKey(DirectAiProvider provider, String key) {
+    if (provider == DirectAiProvider.groq) return setUserGroqApiKey(key);
+    return _storage.write(
+      key: 'user_${provider.name}_api_key',
+      value: key.trim(),
+    );
+  }
+
+  Future<void> clearProviderApiKey(DirectAiProvider provider) {
+    if (provider == DirectAiProvider.groq) return clearUserGroqApiKey();
+    return _storage.delete(key: 'user_${provider.name}_api_key');
+  }
+
+  /// Checks authentication and model availability, not vision inference.
+  Future<bool> testProviderModel(
+    DirectAiProvider provider,
+    String apiKey,
+    String model,
+  ) async {
+    if (apiKey.trim().isEmpty || model.trim().isEmpty) return false;
+    try {
+      final response = await _dio.get(
+        provider.modelsUrl,
+        options: Options(
+          headers: {'Authorization': 'Bearer ${apiKey.trim()}'},
+          followRedirects: false,
+        ),
+      );
+      final data = response.data;
+      if (response.statusCode != 200 || data is! Map || data['data'] is! List) {
+        return false;
+      }
+      return (data['data'] as List).any((entry) {
+        if (entry is! Map) return false;
+        if (entry['id'] == model.trim()) return true;
+        // Mistral may list a versioned model with its -latest alias.
+        final aliases = entry['aliases'];
+        return provider == DirectAiProvider.mistral &&
+            aliases is List &&
+            aliases.contains(model.trim());
+      });
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Secure storage wins. A non-empty `--dart-define=HOSTED_ACCESS_TOKEN`
@@ -63,11 +115,7 @@ class CredentialService {
     try {
       final response = await _dio.get(
         AppConfig.groqModelsApiUrl,
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer ${apiKey.trim()}',
-          },
-        ),
+        options: Options(headers: {'Authorization': 'Bearer ${apiKey.trim()}'}),
       );
       return response.statusCode == 200;
     } catch (_) {

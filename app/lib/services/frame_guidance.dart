@@ -1,13 +1,18 @@
 import 'dart:typed_data';
 
-/// On-device framing estimate from a luminance plane.
+/// Conservative image-quality estimates from a luminance plane.
 ///
-/// Every phrase describes the image, never the physical world. Nothing here
-/// asserts distance, proximity, or a safe path.
+/// Luminance and contrast cannot establish physical tilt, distance, text, page
+/// boundaries, or a safe path. Cues describe only observable image quality.
 class FrameAssessment {
   final double meanLuminance;
   final double variance;
+
+  /// Sampled edge contrast, not a reliable measure of focus or motion blur.
   final double sharpness;
+
+  /// Legacy name for the fraction of sampled edges with noticeable contrast.
+  /// This does not identify text or measure how much of a page is visible.
   final double textCoverage;
   final String? correction;
 
@@ -19,6 +24,7 @@ class FrameAssessment {
     required this.correction,
   });
 
+  /// No quality cue is pending; this does not guarantee readable text or framing.
   bool get readyToCapture => correction == null;
 
   bool isStableWith(FrameAssessment other) {
@@ -42,7 +48,7 @@ class FrameGuidance {
         variance: 0,
         sharpness: 0,
         textCoverage: 0,
-        correction: 'Hold steady.',
+        correction: 'Image quality could not be assessed.',
       );
     }
 
@@ -53,11 +59,7 @@ class FrameGuidance {
     int count = 0;
     double edgeSum = 0;
     int edgeCount = 0;
-
-    final blocksX = 4;
-    final blocksY = 4;
-    final blockScores = List<double>.filled(blocksX * blocksY, 0);
-    final blockCounts = List<int>.filled(blocksX * blocksY, 0);
+    int contrastingEdges = 0;
 
     for (var y = 0; y < height; y += sample) {
       final row = y * stride;
@@ -72,15 +74,11 @@ class FrameGuidance {
 
         final right = index + sample;
         if (x + sample < width && right < bytes.length) {
-          edgeSum += (value - bytes[right]).abs();
+          final contrast = (value - bytes[right]).abs();
+          edgeSum += contrast;
           edgeCount++;
+          if (contrast > 12) contrastingEdges++;
         }
-
-        final bx = (x * blocksX) ~/ width;
-        final by = (y * blocksY) ~/ height;
-        final block = by * blocksX + bx;
-        blockScores[block] += value;
-        blockCounts[block]++;
       }
     }
 
@@ -90,7 +88,7 @@ class FrameGuidance {
         variance: 0,
         sharpness: 0,
         textCoverage: 0,
-        correction: 'Hold steady.',
+        correction: 'Image quality could not be assessed.',
       );
     }
 
@@ -98,37 +96,13 @@ class FrameGuidance {
     final variance = (sumSq / count) - (mean * mean);
     final sharpness = edgeCount == 0 ? 0.0 : edgeSum / edgeCount;
 
-    var busyBlocks = 0;
-    var topBusy = 0;
-    var bottomBusy = 0;
-    for (var i = 0; i < blockScores.length; i++) {
-      if (blockCounts[i] == 0) continue;
-      final blockMean = blockScores[i] / blockCounts[i];
-      // A block is "busy" when its mean differs from the frame, a cheap
-      // stand-in for text or other high-contrast content.
-      if ((blockMean - mean).abs() > 18 || (variance > 400 && sharpness > 12)) {
-        busyBlocks++;
-        if (i < blocksX) topBusy++;
-        if (i >= blocksX * (blocksY - 1)) bottomBusy++;
-      }
-    }
-    final coverage = busyBlocks / (blocksX * blocksY);
+    final coverage = edgeCount == 0 ? 0.0 : contrastingEdges / edgeCount;
 
     String? correction;
-    if (mean < 18 && variance < 40) {
-      correction = 'The lens may be covered.';
-    } else if (mean < 42) {
-      correction = 'More light is needed.';
+    if (mean < 42) {
+      correction = 'The image is dark. More light may help.';
     } else if (sharpness < 6) {
-      correction = 'Hold steady.';
-    } else if (coverage < 0.12) {
-      correction = 'Move closer.';
-    } else if (coverage > 0.85 && topBusy > 0 && bottomBusy > 0) {
-      correction = 'The whole page is not visible.';
-    } else if (bottomBusy >= 3 && topBusy == 0) {
-      correction = 'Tilt up.';
-    } else if (topBusy >= 3 && bottomBusy == 0) {
-      correction = 'Tilt down.';
+      correction = 'The image has little detail.';
     }
 
     return FrameAssessment(

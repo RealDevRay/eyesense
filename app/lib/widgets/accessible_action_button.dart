@@ -9,6 +9,7 @@ class AccessibleActionButton extends StatelessWidget {
   final bool isSecondary;
   final bool isLoading;
   final String? semanticHint;
+  final String? subtitle;
 
   const AccessibleActionButton({
     super.key,
@@ -19,6 +20,7 @@ class AccessibleActionButton extends StatelessWidget {
     this.isSecondary = false,
     this.isLoading = false,
     this.semanticHint,
+    this.subtitle,
   });
 
   @override
@@ -44,6 +46,7 @@ class AccessibleActionButton extends StatelessWidget {
       enabled: enabled,
       label: label,
       hint: semanticHint,
+      onTap: enabled ? onPressed : null,
       child: ExcludeSemantics(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
@@ -85,14 +88,33 @@ class AccessibleActionButton extends StatelessWidget {
                 else
                   Padding(
                     padding: const EdgeInsets.only(right: 12),
-                    child: Icon(icon, size: AppTheme.iconPrimary, color: foreground),
+                    child: Icon(
+                      icon,
+                      size: AppTheme.iconPrimary,
+                      color: foreground,
+                    ),
                   ),
                 Flexible(
-                  child: Text(
-                    label,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: foreground),
-                    softWrap: true,
-                    textAlign: TextAlign.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        label,
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(color: foreground),
+                        softWrap: true,
+                        textAlign: TextAlign.center,
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle!,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: foreground),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],

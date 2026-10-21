@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:eyesense/agents/agent_coordinator.dart';
+import 'package:eyesense/core/config/app_config.dart';
 import 'package:eyesense/features/ask/ask_screen.dart';
 import 'package:eyesense/features/diagnostics/diagnostics_screen.dart';
 import 'package:eyesense/features/home/home_screen.dart';
@@ -9,6 +10,7 @@ import 'package:eyesense/features/onboarding/onboarding_screen.dart';
 import 'package:eyesense/features/profile/profile_choice_screen.dart';
 import 'package:eyesense/features/settings/ai_connection_screen.dart';
 import 'package:eyesense/features/settings/settings_screen.dart';
+import 'package:eyesense/features/settings/device_support_screen.dart';
 import 'package:eyesense/services/diagnostic_log_service.dart';
 import 'package:eyesense/services/preferences_service.dart';
 import 'package:flutter/material.dart';
@@ -28,6 +30,7 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({
       'cloud_consent_granted': true,
+      'terms_version_accepted': AppConfig.termsVersion,
       'app_language': 'en',
       'auto_read': false,
       'assistance_profile': 'sightedAssistant',
@@ -54,7 +57,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(2)),
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(2)),
           child: child ?? const SizedBox.shrink(),
         ),
         home: home,
@@ -64,7 +68,9 @@ void main() {
     expect(tester.takeException(), isNull);
   }
 
-  testWidgets('every primary screen fits at 320 px and 200 percent text', (tester) async {
+  testWidgets('every primary screen fits at 320 px and 200 percent text', (
+    tester,
+  ) async {
     final coordinator = AgentCoordinator(
       cameraService: FakeCameraService(),
       ttsService: FakeTtsService(prefs),
@@ -78,34 +84,53 @@ void main() {
     );
 
     await pumpScaled(tester, HomeScreen(coordinator: coordinator));
-    await pumpScaled(tester, SettingsScreen(
-      preferencesService: prefs,
-      credentialService: MemoryCredentials(),
-      logService: logs,
-      coordinator: coordinator,
-    ));
-    await pumpScaled(tester, OnboardingScreen(coordinator: coordinator, onFinish: () {}));
+    await pumpScaled(
+      tester,
+      SettingsScreen(
+        preferencesService: prefs,
+        credentialService: MemoryCredentials(),
+        logService: logs,
+        coordinator: coordinator,
+      ),
+    );
+    await pumpScaled(tester, DeviceSupportScreen(coordinator: coordinator));
+    await pumpScaled(
+      tester,
+      OnboardingScreen(coordinator: coordinator, onFinish: () {}),
+    );
     await pumpScaled(tester, AskScreen(coordinator: coordinator));
     await tester.pump();
     expect(tester.takeException(), isNull);
-    await pumpScaled(tester, AiConnectionScreen(
-      preferencesService: prefs,
-      credentialService: MemoryCredentials(),
-      coordinator: coordinator,
-    ));
+    await pumpScaled(
+      tester,
+      AiConnectionScreen(
+        preferencesService: prefs,
+        credentialService: MemoryCredentials(),
+        coordinator: coordinator,
+      ),
+    );
     await tester.pump();
     expect(tester.takeException(), isNull);
-    await pumpScaled(tester, DiagnosticsScreen(preferencesService: prefs, logService: logs));
+    await pumpScaled(
+      tester,
+      DiagnosticsScreen(preferencesService: prefs, logService: logs),
+    );
     await tester.pump();
     expect(tester.takeException(), isNull);
-    await pumpScaled(tester, const LegalDocumentScreen(
-      title: 'Privacy Policy',
-      documentBase: 'assets/legal/privacy-policy',
-      language: 'en',
-    ));
+    await pumpScaled(
+      tester,
+      const LegalDocumentScreen(
+        title: 'Privacy Policy',
+        documentBase: 'assets/legal/privacy-policy',
+        language: 'en',
+      ),
+    );
     await tester.pump(const Duration(seconds: 1));
     expect(tester.takeException(), isNull);
-    await pumpScaled(tester, ProfileChoiceScreen(preferences: prefs, onChosen: () {}));
+    await pumpScaled(
+      tester,
+      ProfileChoiceScreen(preferences: prefs, onChosen: () {}),
+    );
   });
 
   testWidgets('settings can change the assistance profile', (tester) async {
@@ -120,14 +145,16 @@ void main() {
       logService: logs,
       visionApi: FakeVisionApiService(),
     );
-    await tester.pumpWidget(MaterialApp(
-      home: SettingsScreen(
-        preferencesService: prefs,
-        credentialService: MemoryCredentials(),
-        logService: logs,
-        coordinator: coordinator,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsScreen(
+          preferencesService: prefs,
+          credentialService: MemoryCredentials(),
+          logService: logs,
+          coordinator: coordinator,
+        ),
       ),
-    ));
+    );
     await tester.pump();
     await tester.ensureVisible(find.text('I use a screen reader'));
     await tester.tap(find.text('I use a screen reader'));
@@ -151,9 +178,11 @@ void main() {
       logService: logs,
       visionApi: FakeVisionApiService(),
     );
-    await tester.pumpWidget(MaterialApp(
-      home: OnboardingScreen(coordinator: coordinator, onFinish: () {}),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OnboardingScreen(coordinator: coordinator, onFinish: () {}),
+      ),
+    );
     await tester.pump();
     await tester.ensureVisible(find.text('Read this aloud'));
     await tester.tap(find.text('Read this aloud'));

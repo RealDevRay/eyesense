@@ -14,14 +14,18 @@ class HostedVisionProvider implements VisionApiService {
     Dio? dio,
     required this.credentialService,
     String? baseUrl,
-  })  : _baseUrl = baseUrl ?? AppConfig.defaultApiBaseUrl,
-        _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: AppConfig.clientTimeout,
-                receiveTimeout: AppConfig.clientTimeout,
-              ),
-            );
+  }) : _baseUrl = (baseUrl ?? AppConfig.defaultApiBaseUrl).trim().replaceFirst(
+         RegExp(r'/+$'),
+         '',
+       ),
+       _dio =
+           dio ??
+           Dio(
+             BaseOptions(
+               connectTimeout: AppConfig.clientTimeout,
+               receiveTimeout: AppConfig.clientTimeout,
+             ),
+           );
 
   Future<Map<String, String>> _getAuthHeaders() async {
     final token = await credentialService.getDemoAccessToken();
@@ -50,10 +54,7 @@ class HostedVisionProvider implements VisionApiService {
         'requestId': requestId,
         'mode': 'describe',
         'language': language,
-        'image': {
-          'mimeType': 'image/jpeg',
-          'base64': base64Jpeg,
-        },
+        'image': {'mimeType': 'image/jpeg', 'base64': base64Jpeg},
       },
       cancelToken: cancelToken,
       timeout: timeout,
@@ -75,10 +76,7 @@ class HostedVisionProvider implements VisionApiService {
         'mode': 'ask',
         'language': language,
         'question': question,
-        'image': {
-          'mimeType': 'image/jpeg',
-          'base64': base64Jpeg,
-        },
+        'image': {'mimeType': 'image/jpeg', 'base64': base64Jpeg},
       },
       cancelToken: cancelToken,
       timeout: timeout,
@@ -96,6 +94,7 @@ class HostedVisionProvider implements VisionApiService {
         '$_baseUrl/v1/vision',
         data: body,
         options: Options(
+          followRedirects: false,
           headers: headers,
           sendTimeout: timeout,
           receiveTimeout: timeout,
@@ -127,7 +126,9 @@ class HostedVisionProvider implements VisionApiService {
         );
       }
       if (e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.receiveTimeout) {
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.response?.statusCode == 504) {
         throw const AppException(
           code: ErrorCode.requestTimeout,
           userMessage: 'Visual analysis timed out. Please try again.',
@@ -139,16 +140,41 @@ class HostedVisionProvider implements VisionApiService {
           userMessage: 'Invalid demo access token. Please update Settings.',
         );
       }
+      // Treat all server text as untrusted. Map only known codes to local copy.
+      final data = e.response?.data;
+      final error = data is Map ? data['error'] : null;
+      final code = error is Map ? error['code'] : null;
       if (e.response?.statusCode == 429) {
-        throw const AppException(
+        final raw = e.response?.headers.value('retry-after') ?? '';
+        final seconds = RegExp(r'^\d{1,6}$').hasMatch(raw)
+            ? int.tryParse(raw)
+            : null;
+        final wait = seconds != null && seconds > 0
+            ? 'Wait $seconds seconds before trying again.'
+            : 'Wait before trying again.';
+        throw AppException(
           code: ErrorCode.upstreamRateLimited,
-          userMessage: 'Service rate limit reached. Please wait a moment and try again.',
+          userMessage:
+              'Shared service usage limit reached. $wait Read Text OCR is still available. No request was retried automatically.',
+        );
+      }
+      if (e.response?.statusCode == 502 &&
+          (code == 'UPSTREAM_AUTH_ERROR' || code == 'UPSTREAM_ACCESS_DENIED')) {
+        throw AppException(
+          code: ErrorCode.upstreamAuthFailed,
+          userMessage: code == 'UPSTREAM_ACCESS_DENIED'
+              ? 'Groq denied access to the EyeSense service. Ask the pilot operator to check Groq account and model permissions. Read Text OCR is still available.'
+              : 'Groq rejected the service API key. Ask the pilot operator to update it. Do not share keys in feedback.',
         );
       }
       if (e.response?.statusCode == 503) {
-        throw const AppException(
+        throw AppException(
           code: ErrorCode.cloudDisabled,
-          userMessage: 'Cloud processing is temporarily disabled on the server.',
+          userMessage: switch (code) {
+            'DAILY_BUDGET_EXHAUSTED' => 'The pilot shared daily allowance is used up. Use Read Text OCR or try again tomorrow.',
+            'BUDGET_UNAVAILABLE' => 'Hosted usage accounting is unavailable. Please try later or use Read Text OCR.',
+            _ => 'Cloud processing is temporarily disabled on the server.',
+          },
         );
       }
       throw AppException(

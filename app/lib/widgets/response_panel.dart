@@ -30,14 +30,21 @@ class ResponsePanelWidget extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final hasConcern = presentationRecord?.possibleConcern == true || sceneResult?.possibleConcern == true;
-    final concernDesc = presentationRecord?.concernDescription ?? sceneResult?.concernDescription;
-    final isPrevious = presentationRecord?.status == PresentationStatus.previous;
-    final uncertainty = presentationRecord?.uncertainty ?? sceneResult?.uncertainty;
-    final sentences = _sentences(text);
+    final hasConcern =
+        presentationRecord?.possibleConcern == true ||
+        sceneResult?.possibleConcern == true;
+    final concernDesc =
+        presentationRecord?.concernDescription ??
+        sceneResult?.concernDescription;
+    final isPrevious =
+        presentationRecord?.status == PresentationStatus.previous;
+    final uncertainty =
+        presentationRecord?.uncertainty ?? sceneResult?.uncertainty;
 
     return AnimatedSwitcher(
-      duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 180),
+      duration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 180),
       child: Container(
         key: ValueKey(text),
         width: double.infinity,
@@ -56,7 +63,12 @@ class ResponsePanelWidget extends StatelessWidget {
             if (isPrevious)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: Text('Previous output', style: theme.textTheme.labelMedium?.copyWith(color: colors.accent)),
+                child: Text(
+                  'Previous output',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: colors.accent,
+                  ),
+                ),
               ),
             if (hasConcern)
               Padding(
@@ -65,7 +77,9 @@ class ResponsePanelWidget extends StatelessWidget {
                   concernDesc != null && concernDesc.isNotEmpty
                       ? 'Potential concern: $concernDesc'
                       : 'Potential concern',
-                  style: theme.textTheme.titleSmall?.copyWith(color: colors.concern),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: colors.concern,
+                  ),
                 ),
               ),
             Focus(
@@ -81,36 +95,22 @@ class ResponsePanelWidget extends StatelessWidget {
             if (uncertainty != null && uncertainty.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text('Note: $uncertainty', style: theme.textTheme.bodySmall),
-              ),
-            if (sentences.length > 1) ...[
-              const SizedBox(height: 12),
-              Text('Sentences', style: theme.textTheme.labelMedium),
-              const SizedBox(height: 8),
-              for (var i = 0; i < sentences.length; i++)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text('Sentence ${i + 1}. ${sentences[i]}', style: theme.textTheme.bodyMedium),
+                child: Text(
+                  'Note: $uncertainty',
+                  style: theme.textTheme.bodySmall,
                 ),
-            ],
+              ),
+
             if (onMoreDetail != null) ...[
               const SizedBox(height: 8),
               OutlinedButton(
                 onPressed: onMoreDetail,
-                child: const Text('More detail'),
+                child: const Text('Read full response aloud'),
               ),
             ],
           ],
         ),
       ),
     );
-  }
-
-  List<String> _sentences(String text) {
-    return text
-        .split(RegExp(r'(?<=[.!?])\s+'))
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
   }
 }

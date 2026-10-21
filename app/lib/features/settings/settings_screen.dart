@@ -5,6 +5,7 @@ import 'package:eyesense/features/diagnostics/diagnostics_screen.dart';
 import 'package:eyesense/features/legal/legal_document_screen.dart';
 import 'package:eyesense/features/onboarding/onboarding_screen.dart';
 import 'package:eyesense/features/settings/ai_connection_screen.dart';
+import 'package:eyesense/features/settings/device_support_screen.dart';
 import 'package:eyesense/services/credential_service.dart';
 import 'package:eyesense/services/diagnostic_log_service.dart';
 import 'package:eyesense/services/preferences_service.dart';
@@ -66,15 +67,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         children: [
           Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
-          const Text('Theme Mode', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text(
+            'Theme Mode',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
           const Text('System, dark, light, or maximum contrast'),
           DropdownButton<String>(
             isExpanded: true,
@@ -84,7 +86,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               DropdownMenuItem(value: 'system', child: Text('System')),
               DropdownMenuItem(value: 'dark', child: Text('Dark')),
               DropdownMenuItem(value: 'light', child: Text('Light')),
-              DropdownMenuItem(value: 'contrast', child: Text('Maximum contrast')),
+              DropdownMenuItem(
+                value: 'contrast',
+                child: Text('Maximum contrast'),
+              ),
             ],
             onChanged: (val) {
               if (val != null) {
@@ -95,10 +100,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 32),
 
-          Text('How you use EyeSense', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'How you use EyeSense',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 8),
           Text(
-            'Choosing a profile sets its starting preferences. You can change each option afterwards, and nothing is turned off permanently.',
+            'Choosing a profile resets its starting preferences. All profiles start with spoken results, including when a sighted person helps. You can change each option afterwards.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           RadioGroup<AssistanceProfile>(
@@ -129,6 +137,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 32),
 
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.sensors),
+            title: const Text('Phone & capture guidance'),
+            subtitle: const Text(
+              'Optional motion and lighting cues, available sensors, and a local sensor check',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    DeviceSupportScreen(coordinator: widget.coordinator),
+              ),
+            ),
+          ),
+          const Divider(height: 32),
           Text('Speech & Audio', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           Text('Speech rate: ${SpeechRateScale.labelFor(_speechRate)}'),
@@ -146,12 +170,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Align(
             alignment: Alignment.centerLeft,
             child: OutlinedButton(
-              onPressed: () => widget.coordinator.ttsService.speak('This is EyeSense at the selected speaking rate.'),
+              onPressed: () => widget.coordinator.ttsService.speak(
+                'This is EyeSense at the selected speaking rate.',
+              ),
               child: const Text('Preview voice'),
             ),
           ),
           const SizedBox(height: 12),
-          const Text('Language', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text(
+            'Language',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
           const Text('Spoken language and response translations'),
           DropdownButton<String>(
             isExpanded: true,
@@ -170,8 +199,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Automatic Spoken Reading', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Automatically speak new visual results aloud via TTS'),
+            title: const Text(
+              'Automatic Spoken Reading',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            subtitle: const Text(
+              'Automatically speak new visual results aloud via TTS',
+            ),
             value: _autoRead,
             onChanged: (val) {
               setState(() => _autoRead = val);
@@ -180,8 +214,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Haptic Vibration Feedback', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Vibrate phone on confirmation and potential concerns'),
+            title: const Text(
+              'Haptic Vibration Feedback',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            subtitle: const Text(
+              'Vibrate phone on confirmation and potential concerns',
+            ),
             value: _haptics,
             onChanged: (val) {
               setState(() => _haptics = val);
@@ -190,12 +229,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 36),
 
-          Text('Privacy & Cloud Processing', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Privacy & Cloud Processing',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 8),
+          if (widget.preferencesService.acceptedTermsVersion != null &&
+              widget.preferencesService.acceptedTermsVersion !=
+                  AppConfig.termsVersion)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Privacy notice updated for the pilot. Previous cloud consent is off. Review Privacy and Terms below before enabling cloud processing again.',
+              ),
+            ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Cloud Processing Consent', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Allow sending single snapshots and questions to your configured AI provider. Read Text operates offline without consent.'),
+            title: const Text(
+              'Cloud Processing Consent',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            subtitle: const Text(
+              'Allow sending single snapshots and questions to your configured AI provider. Read Text OCR stays on your phone; system speech may need internet.',
+            ),
             value: _cloudConsent,
             onChanged: (val) {
               setState(() => _cloudConsent = val);
@@ -206,9 +262,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.cloud_outlined, color: Theme.of(context).colorScheme.primary, size: 28),
-            title: const Text('AI Connection', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Configure EyeSense service or Bring Your Own Groq Key'),
+            leading: Icon(
+              Icons.cloud_outlined,
+              color: Theme.of(context).colorScheme.primary,
+              size: 28,
+            ),
+            title: const Text(
+              'AI Connection',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            subtitle: const Text(
+              'EyeSense service, Groq, Mistral, OpenAI or Google Gemini',
+            ),
             trailing: const Icon(Icons.arrow_forward_ios, size: 18),
             onTap: () async {
               await Navigator.of(context).push(
@@ -228,9 +293,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 12),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.analytics_outlined, color: Theme.of(context).colorScheme.primary, size: 28),
-            title: const Text('Diagnostics', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Manage technical event logging, view file size, and export'),
+            leading: Icon(
+              Icons.analytics_outlined,
+              color: Theme.of(context).colorScheme.primary,
+              size: 28,
+            ),
+            title: const Text(
+              'Diagnostics',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            subtitle: const Text(
+              'Manage technical event logging, view file size, and export',
+            ),
             trailing: const Icon(Icons.arrow_forward_ios, size: 18),
             onTap: () {
               Navigator.of(context).push(
@@ -254,25 +328,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Privacy Policy'),
-            subtitle: Text('Version ${AppConfig.termsVersion}. Accepted: ${widget.preferencesService.acceptedTermsVersion ?? 'not yet'}'),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => LegalDocumentScreen(
-                title: 'Privacy Policy',
-                documentBase: 'assets/legal/privacy-policy',
-                language: _language,
+            subtitle: Text(
+              'Version ${AppConfig.termsVersion}. Accepted: ${widget.preferencesService.acceptedTermsVersion ?? 'not yet'}',
+            ),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => LegalDocumentScreen(
+                  title: 'Privacy Policy',
+                  documentBase: 'assets/legal/privacy-policy',
+                  language: _language,
+                ),
               ),
-            )),
+            ),
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Terms of Use'),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => LegalDocumentScreen(
-                title: 'Terms of Use',
-                documentBase: 'assets/legal/terms-of-service',
-                language: _language,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => LegalDocumentScreen(
+                  title: 'Terms of Use',
+                  documentBase: 'assets/legal/terms-of-service',
+                  language: _language,
+                ),
               ),
-            )),
+            ),
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -286,9 +366,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.help_outline, color: Theme.of(context).colorScheme.primary, size: 24),
-            title: const Text('Tutorial & Practice', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Replay the introductory onboarding walkthrough'),
+            leading: Icon(
+              Icons.help_outline,
+              color: Theme.of(context).colorScheme.primary,
+              size: 24,
+            ),
+            title: const Text(
+              'Tutorial & Practice',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            subtitle: const Text(
+              'Replay the introductory onboarding walkthrough',
+            ),
             trailing: const Icon(Icons.arrow_forward_ios, size: 18),
             onTap: () async {
               await Navigator.of(context).push(

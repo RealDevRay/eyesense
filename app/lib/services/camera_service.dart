@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:camera/camera.dart';
 import 'package:eyesense/core/config/app_config.dart';
 import 'package:eyesense/core/errors/app_exceptions.dart';
+import 'package:eyesense/services/device_sensor_service.dart';
 import 'package:eyesense/services/frame_guidance.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
@@ -28,20 +30,37 @@ class CapturedOcrData {
   final File file;
   final DateTime timestamp;
 
-  CapturedOcrData({
-    required this.file,
-    DateTime? timestamp,
-  }) : timestamp = timestamp ?? DateTime.now();
+  CapturedOcrData({required this.file, DateTime? timestamp})
+    : timestamp = timestamp ?? DateTime.now();
 }
 
 class CameraService {
+  CameraService({DeviceSensorService? sensorService})
+    : sensorService = sensorService ?? DeviceSensorService();
+
+  /// Shared with the optional capability/check UI. Discovery never subscribes.
+  final DeviceSensorService sensorService;
+
+  /// The coordinator may set this from preferences. Sensors are only checked
+  /// for an explicit capture with an onGuidance callback, never at startup.
+  bool sensorGuidanceEnabled = true;
+
   CameraController? _controller;
-  List<CameraDescription>? _cameras;
+  CameraController? _initializingController;
+  Future<void>? _pendingInitialization;
+  ResolutionPreset? _pendingPreset;
+  int? _pendingLifecycle;
+  Future<void> _pendingDisposal = Future<void>.value();
+  int _lifecycleGeneration = 0;
+  int _captureGeneration = 0;
+  Completer<void>? _guidanceDone;
+  Completer<void>? _sensorCuePause;
+  Future<void>? _guidanceStopped;
   bool _isCapturing = false;
-  bool _isInitializing = false;
   ResolutionPreset _currentPreset = ResolutionPreset.medium;
 
-  bool get isInitialized => _controller != null && _controller!.value.isInitialized;
+  bool get isInitialized =>
+      _controller != null && _controller!.value.isInitialized;
   CameraController? get controller => _controller;
 
   Future<void> _checkPermissions() async {
@@ -63,62 +82,122 @@ class CameraService {
       if (!reqResult.isGranted) {
         throw const AppException(
           code: ErrorCode.cameraPermissionDenied,
-          userMessage: 'Camera access is required to capture scenes and read text.',
+          userMessage:
+              'Camera access is required to capture scenes and read text.',
         );
       }
     }
   }
 
-  Future<void> initialize({ResolutionPreset preset = ResolutionPreset.medium}) async {
-    if (isInitialized && _currentPreset == preset) return;
-    if (_isInitializing) return;
-    _isInitializing = true;
+  Future<void> initialize({ResolutionPreset preset = ResolutionPreset.medium}) {
+    final lifecycle = _lifecycleGeneration;
+    final pending = _pendingInitialization;
+    if (pending != null &&
+        _pendingPreset == preset &&
+        _pendingLifecycle == lifecycle) {
+      return pending;
+    }
+    if (pending == null && isInitialized && _currentPreset == preset) {
+      return Future<void>.value();
+    }
 
+    // Keep a single queue even across dispose/reinitialize. Calls for the same
+    // pending preset share its result; a different preset waits its turn.
+    late final Future<void> initialization;
+    initialization = Future<void>.microtask(() async {
+      try {
+        if (pending != null) {
+          try {
+            await pending;
+          } catch (_) {
+            // A failed or invalidated predecessor must not poison the queue.
+          }
+        }
+        _checkLifecycle(lifecycle);
+        await _initializeController(preset, lifecycle);
+      } finally {
+        if (identical(_pendingInitialization, initialization)) {
+          _pendingInitialization = null;
+          _pendingPreset = null;
+          _pendingLifecycle = null;
+        }
+      }
+    });
+    _pendingInitialization = initialization;
+    _pendingPreset = preset;
+    _pendingLifecycle = lifecycle;
+    return initialization;
+  }
+
+  Future<void> _initializeController(
+    ResolutionPreset preset,
+    int lifecycle,
+  ) async {
+    CameraController? candidate;
     try {
+      await _pendingDisposal;
+      _checkLifecycle(lifecycle);
+      if (isInitialized && _currentPreset == preset) return;
       await _checkPermissions();
+      _checkLifecycle(lifecycle);
 
-      _cameras = await availableCameras();
-      if (_cameras == null || _cameras!.isEmpty) {
+      final cameras = await availableCameras();
+      _checkLifecycle(lifecycle);
+      if (cameras.isEmpty) {
         throw const AppException(
           code: ErrorCode.cameraUnavailable,
           userMessage: 'No camera is available on this device.',
         );
       }
 
-      // Dispose any existing controller before re-initializing
-      await dispose();
+      final previous = _controller;
+      _controller = null;
+      await _disposeController(previous);
+      _checkLifecycle(lifecycle);
 
-      // Select rear camera by default
-      final rearCamera = _cameras!.firstWhere(
+      final rearCamera = cameras.firstWhere(
         (cam) => cam.lensDirection == CameraLensDirection.back,
-        orElse: () => _cameras!.first,
+        orElse: () => cameras.first,
       );
-
-      final controller = CameraController(
-        rearCamera,
-        preset,
-        enableAudio: false,
-      );
-
-      await controller.initialize();
-      _controller = controller;
+      candidate = CameraController(rearCamera, preset, enableAudio: false);
+      _initializingController = candidate;
+      await candidate.initialize();
+      _checkLifecycle(lifecycle);
+      _controller = candidate;
+      _initializingController = null;
       _currentPreset = preset;
     } catch (e) {
-      await dispose();
+      if (candidate != null && identical(_initializingController, candidate)) {
+        _initializingController = null;
+        await _disposeController(candidate);
+      }
+      _checkLifecycle(lifecycle);
       if (e is AppException) rethrow;
       throw AppException(
         code: ErrorCode.cameraUnavailable,
         userMessage: 'Could not initialize device camera.',
         technicalDetail: e.toString(),
       );
-    } finally {
-      _isInitializing = false;
     }
   }
 
+  void _checkLifecycle(int lifecycle) {
+    if (lifecycle != _lifecycleGeneration) _throwCancelled();
+  }
+
+  void _checkCapture(int generation) {
+    if (generation != _captureGeneration) _throwCancelled();
+  }
+
+  Never _throwCancelled() => throw const AppException(
+    code: ErrorCode.operationCancelled,
+    userMessage: 'Camera operation cancelled.',
+  );
+
   Future<PermissionStatus> permissionStatus() => Permission.camera.status;
 
-  Future<bool> hasPermission() async => (await Permission.camera.status).isGranted;
+  Future<bool> hasPermission() async =>
+      (await Permission.camera.status).isGranted;
 
   Future<bool> isPermissionPermanentlyDenied() async =>
       (await Permission.camera.status).isPermanentlyDenied;
@@ -142,7 +221,9 @@ class CameraService {
       await for (final entity in dir.list()) {
         if (entity is! File) continue;
         final name = p.basename(entity.path);
-        if (!RegExp(r'^CAP\d+\.jpe?g$', caseSensitive: false).hasMatch(name)) continue;
+        if (!RegExp(r'^CAP\d+\.jpe?g$', caseSensitive: false).hasMatch(name)) {
+          continue;
+        }
         final modified = await entity.lastModified();
         if (modified.isBefore(cutoff)) {
           await deleteTemporaryCapture(entity);
@@ -153,10 +234,13 @@ class CameraService {
 
   /// Lightweight capture for on-device OCR without expensive image decoding, resizing, or base64 encoding.
   ///
-  /// When [onGuidance] is set, low-resolution frames are assessed first and a
-  /// still is taken after the frame looks stable, or after a short timeout.
+  /// When [onGuidance] is set, sampled luminance frames are assessed first and
+  /// a still is taken after quality measurements settle, or a short timeout.
+  /// [cancelPendingCapture] prevents the still if called during this wait.
   /// ML Kit itself still cannot be cancelled once recognition starts.
-  Future<CapturedOcrData> captureForOcr({void Function(String phrase)? onGuidance}) async {
+  Future<CapturedOcrData> captureForOcr({
+    void Function(String phrase)? onGuidance,
+  }) async {
     if (_isCapturing) {
       throw const AppException(
         code: ErrorCode.cameraUnavailable,
@@ -164,31 +248,49 @@ class CameraService {
       );
     }
     _isCapturing = true;
+    final generation = _captureGeneration;
+    File? originalFile;
 
     try {
-      if (!isInitialized) {
-        await initialize(preset: ResolutionPreset.high);
-      }
+      await initialize(preset: ResolutionPreset.high);
+      _checkCapture(generation);
 
       if (onGuidance != null) {
-        await _guideBeforeCapture(onGuidance);
+        var guided = false;
+        void guideOnce(String phrase) {
+          if (guided || generation != _captureGeneration) return;
+          guided = true;
+          onGuidance(phrase);
+        }
+
+        await _guideWithSensors(guideOnce, generation);
+        _checkCapture(generation);
+        await _guideBeforeCapture(guideOnce, generation);
       }
 
       final captureTime = DateTime.now();
+      _checkCapture(generation);
       final xfile = await _controller!.takePicture();
-      final originalFile = File(xfile.path);
+      originalFile = File(xfile.path);
+      _checkCapture(generation);
 
-      return CapturedOcrData(
-        file: originalFile,
-        timestamp: captureTime,
-      );
+      return CapturedOcrData(file: originalFile, timestamp: captureTime);
+    } catch (_) {
+      await deleteTemporaryCapture(originalFile);
+      _checkCapture(generation);
+      rethrow;
     } finally {
       _isCapturing = false;
     }
   }
 
-  /// Cloud capture with bounding, resizing, and base64 JPEG encoding
-  Future<CapturedImageData> captureAndCompress() async {
+  /// Cloud capture with bounding, resizing, and base64 JPEG encoding.
+  /// Sensor sampling is best effort (<1 second). A cue adds a cancellable
+  /// 1.5-second adjustment pause. There is no sensor query or pause without
+  /// [onGuidance], and no pause when sensors produce no cue.
+  Future<CapturedImageData> captureAndCompress({
+    void Function(String phrase)? onGuidance,
+  }) async {
     if (_isCapturing) {
       throw const AppException(
         code: ErrorCode.cameraUnavailable,
@@ -196,16 +298,23 @@ class CameraService {
       );
     }
     _isCapturing = true;
+    final generation = _captureGeneration;
+    File? originalFile;
 
     try {
-      if (!isInitialized) {
-        await initialize(preset: ResolutionPreset.medium);
+      await initialize(preset: ResolutionPreset.medium);
+      _checkCapture(generation);
+      if (onGuidance != null) {
+        await _guideWithSensors(onGuidance, generation);
       }
 
       final captureTime = DateTime.now();
+      _checkCapture(generation);
       final xfile = await _controller!.takePicture();
-      final originalFile = File(xfile.path);
+      originalFile = File(xfile.path);
+      _checkCapture(generation);
       final rawBytes = await originalFile.readAsBytes();
+      _checkCapture(generation);
 
       // Decode and resize if needed
       final decoded = img.decodeImage(rawBytes);
@@ -226,35 +335,104 @@ class CameraService {
         }
       }
 
-      final compressedBytes = img.encodeJpg(processed, quality: AppConfig.jpegQuality);
+      final compressedBytes = img.encodeJpg(
+        processed,
+        quality: AppConfig.jpegQuality,
+      );
       if (compressedBytes.length > AppConfig.maxImageDecodedBytes) {
         throw const AppException(
           code: ErrorCode.validationFailed,
-          userMessage: 'Captured image is too large for processing. Please try again.',
+          userMessage:
+              'Captured image is too large for processing. Please try again.',
         );
       }
 
       final base64Str = base64Encode(compressedBytes);
+      _checkCapture(generation);
       return CapturedImageData(
         file: originalFile,
         base64Jpeg: base64Str,
         byteSize: compressedBytes.length,
         timestamp: captureTime,
       );
+    } catch (_) {
+      await deleteTemporaryCapture(originalFile);
+      _checkCapture(generation);
+      rethrow;
     } finally {
       _isCapturing = false;
     }
   }
 
-  Future<void> _guideBeforeCapture(void Function(String phrase) onGuidance) async {
+  /// Cancels the active capture and silences guidance immediately. Safe to call
+  /// repeatedly or without an active capture. An already-issued native still
+  /// cannot be aborted; its result is discarded and its temporary file deleted.
+  Future<void> cancelPendingCapture() async {
+    _captureGeneration++;
+    final done = _guidanceDone;
+    if (done != null && !done.isCompleted) done.complete();
+    final pause = _sensorCuePause;
+    if (pause != null && !pause.isCompleted) pause.complete();
+    await Future.wait<void>([sensorService.stop(), ?_guidanceStopped]);
+  }
+
+  Future<void> _guideWithSensors(
+    void Function(String phrase) onGuidance,
+    int generation,
+  ) async {
+    if (!sensorGuidanceEnabled) return;
+    try {
+      final assessment = await sensorService.check();
+      if (generation != _captureGeneration || !sensorGuidanceEnabled) return;
+      final cue = assessment.guidance;
+      if (cue != null) {
+        onGuidance(cue);
+        if (generation != _captureGeneration) return;
+        // Give the user a short chance to react; sampling has already stopped.
+        // Stop/backgrounding releases this wait immediately, not after a timer.
+        final pause = Completer<void>();
+        _sensorCuePause = pause;
+        final timer = Timer(const Duration(milliseconds: 1500), () {
+          if (!pause.isCompleted) pause.complete();
+        });
+        try {
+          await pause.future;
+        } finally {
+          timer.cancel();
+          if (identical(_sensorCuePause, pause)) _sensorCuePause = null;
+        }
+      }
+    } catch (_) {
+      // Optional sensors or a failed guidance callback must not block a still.
+    } finally {
+      await sensorService.stop();
+    }
+  }
+
+  Future<void> _guideBeforeCapture(
+    void Function(String phrase) onGuidance,
+    int generation,
+  ) async {
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized) return;
     FrameAssessment? previous;
     var stable = 0;
     final done = Completer<void>();
+    final stopped = Completer<void>();
+    _guidanceDone = done;
+    _guidanceStopped = stopped.future;
     try {
+      _checkCapture(generation);
       await controller.startImageStream((image) {
-        if (done.isCompleted || image.planes.isEmpty) return;
+        if (done.isCompleted ||
+            generation != _captureGeneration ||
+            image.planes.isEmpty) {
+          return;
+        }
+        if (image.format.group != ImageFormatGroup.yuv420 &&
+            image.format.group != ImageFormatGroup.nv21) {
+          return;
+        }
         final plane = image.planes.first;
         final assessment = FrameGuidance.assess(
           plane.bytes,
@@ -263,7 +441,14 @@ class CameraService {
           bytesPerRow: plane.bytesPerRow,
         );
         if (assessment.correction != null) {
-          onGuidance(assessment.correction!);
+          try {
+            onGuidance(assessment.correction!);
+          } catch (_) {
+            // A callback can fail asynchronously after startImageStream has
+            // returned. End optional guidance rather than leaking the stream.
+            if (!done.isCompleted) done.complete();
+            return;
+          }
           stable = 0;
         } else if (previous != null && assessment.isStableWith(previous!)) {
           stable++;
@@ -277,13 +462,20 @@ class CameraService {
       });
       await done.future.timeout(const Duration(seconds: 8), onTimeout: () {});
     } catch (_) {
-      // Guidance is optional. A still capture still happens.
+      // Unsupported guidance may fall back to a still, but cancellation is
+      // checked by the caller after the stream has been stopped.
     } finally {
+      if (!done.isCompleted) done.complete();
       try {
         if (controller.value.isStreamingImages) {
           await controller.stopImageStream();
         }
       } catch (_) {}
+      if (identical(_guidanceDone, done)) {
+        _guidanceDone = null;
+        _guidanceStopped = null;
+      }
+      stopped.complete();
     }
   }
 
@@ -299,10 +491,29 @@ class CameraService {
     }
   }
 
-  Future<void> dispose() async {
+  Future<void> _disposeController(CameraController? controller) async {
     try {
-      await _controller?.dispose();
+      await controller?.dispose();
     } catch (_) {}
+  }
+
+  Future<void> dispose() {
+    // Invalidate before awaiting anything: late permission/discovery/initialize
+    // completions must never publish a controller after a background dispose.
+    _lifecycleGeneration++;
+    final cancelled = cancelPendingCapture();
+    final current = _controller;
+    final initializing = _initializingController;
     _controller = null;
+    _initializingController = null;
+    final previousDisposal = _pendingDisposal;
+    final disposal = Future<void>.microtask(() async {
+      await previousDisposal;
+      await cancelled;
+      await _disposeController(current);
+      await _disposeController(initializing);
+    });
+    _pendingDisposal = disposal;
+    return disposal;
   }
 }

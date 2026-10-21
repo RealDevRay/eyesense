@@ -50,15 +50,21 @@ android {
 
     buildTypes {
         release {
-            // A Play upload needs key.properties. Without it the build still
-            // installs on a test device, but it is not a publishable signature.
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // Never silently distribute a debug-signed release artifact.
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
             isShrinkResources = false
+        }
+    }
+
+    tasks.configureEach {
+        if (name == "preReleaseBuild") {
+            doFirst {
+                check(keystorePropertiesFile.exists()) {
+                    "Release signing requires android/key.properties and a private keystore. " +
+                        "Use flutter build apk --debug for supervised developer testing."
+                }
+            }
         }
     }
 }

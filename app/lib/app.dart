@@ -16,13 +16,30 @@ class EyeSenseApp extends StatefulWidget {
   State<EyeSenseApp> createState() => _EyeSenseAppState();
 }
 
-class _EyeSenseAppState extends State<EyeSenseApp> {
+class _EyeSenseAppState extends State<EyeSenseApp> with WidgetsBindingObserver {
   late bool _showOnboarding;
 
   @override
   void initState() {
     super.initState();
-    _showOnboarding = !widget.coordinator.preferencesService.hasCompletedOnboarding;
+    WidgetsBinding.instance.addObserver(this);
+    _showOnboarding =
+        !widget.coordinator.preferencesService.hasCompletedOnboarding;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Permission dialogs may be inactive; only leaving the app cancels work.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      widget.coordinator.suspend();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   ThemeMode _resolveThemeMode() {
@@ -43,11 +60,16 @@ class _EyeSenseAppState extends State<EyeSenseApp> {
           title: 'EyeSense',
           debugShowCheckedModeBanner: false,
           theme: contrast ? AppTheme.maximumContrastTheme : AppTheme.lightTheme,
-          darkTheme: contrast ? AppTheme.maximumContrastTheme : AppTheme.darkTheme,
+          darkTheme: contrast
+              ? AppTheme.maximumContrastTheme
+              : AppTheme.darkTheme,
           themeMode: _resolveThemeMode(),
           builder: (context, child) {
             final media = MediaQuery.of(context);
-            final scale = math.max(media.textScaler.scale(1), prefs.preferredTextScale);
+            final scale = math.max(
+              media.textScaler.scale(1),
+              prefs.preferredTextScale,
+            );
             return MediaQuery(
               data: media.copyWith(textScaler: TextScaler.linear(scale)),
               child: child ?? const SizedBox.shrink(),
@@ -59,11 +81,11 @@ class _EyeSenseAppState extends State<EyeSenseApp> {
                   onChosen: () => setState(() {}),
                 )
               : _showOnboarding
-                  ? OnboardingScreen(
-                      coordinator: widget.coordinator,
-                      onFinish: () => setState(() => _showOnboarding = false),
-                    )
-                  : HomeScreen(coordinator: widget.coordinator),
+              ? OnboardingScreen(
+                  coordinator: widget.coordinator,
+                  onFinish: () => setState(() => _showOnboarding = false),
+                )
+              : HomeScreen(coordinator: widget.coordinator),
         );
       },
     );

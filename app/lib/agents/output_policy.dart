@@ -34,19 +34,59 @@ class OutputPolicy {
     'karibu kugongana',
   ];
 
+  // Normalization closes formatting bypasses, but is not semantic safety proof.
+  static String _normalize(String text) => text
+      .toLowerCase()
+      .replaceAll(
+        RegExp(r'[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]'),
+        '',
+      )
+      .replaceAll(RegExp(r'[^a-z0-9\s.]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  static final _movement = RegExp(
+    r'\b(?:take|walk|move|go|proceed|step|turn)\s+(?:(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(?:steps?\s+)?)?(?:forward|backward|back|ahead|left|right|straight)\b|'
+    r'\b(?:take|walk|move|go)\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+steps?\b|'
+    r'\b(?:you|it)\s+(?:may|can|is)\s+(?:safely\s+)?(?:cross|proceed|walk)\b|'
+    r'\b(?:safe|safely|clear)\s+(?:to\s+)?(?:cross|walk|proceed)\b|'
+    r'\b(?:tembea|songa|geuka)\s+(?:mbele|nyuma|kushoto|kulia)\b|'
+    r'\bpiga\s+hatua\b',
+  );
+  static final _distance = RegExp(
+    r'\b(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten)\s*'
+    r'(?:m|cm|mm|km|meters?|metres?|centimeters?|centimetres?|feet|foot|ft|inches?|in)\s*'
+    r'(?:away|ahead|behind|from|to|in front|on your)\b|'
+    r'\b(?:distance|depth)\s+(?:is|of|approximately|about)\s+\d|'
+    r'\b(?:mita|sentimita)\s+(?:\d+|moja|mbili|tatu|nne|tano)\b',
+  );
+
+  /// Conservative pilot gate, not a general natural-language classifier.
+  static bool isNavigationQuestion(String text) {
+    final normalized = _normalize(text);
+    return containsProhibitedSafetyGuidance(text) ||
+        RegExp(
+          r'\b(?:cross|crossing|navigate|navigation|directions|distance)\b|'
+          r'\bhow\s+(?:far|many\s+steps)\b|'
+          r'\b(?:safe|clear)\b.*\b(?:walk|go|move|path|route|road|street|proceed)\b|'
+          r'\b(?:can|should|may|where|which way)\b.*\b(?:walk|step|turn|go|move)\b|'
+          r'\b(?:kuvuka|vuka|nitembee|nigeuke|umbali|hatua ngapi|njia salama)\b',
+        ).hasMatch(normalized);
+  }
+
+  static String navigationLimitation(String language) => language == 'sw'
+      ? 'EyeSense haiwezi kuamua usalama wa njia, umbali, au kutoa maelekezo ya kutembea. Tumia msaada wako wa kawaida wa uhamaji au mtu unayemwamini.'
+      : 'EyeSense cannot decide whether a route is safe, measure distance, or give walking directions. Use your usual mobility aids or a trusted person.';
+
   static bool containsProhibitedSafetyGuidance(String text) {
-    final lower = text.toLowerCase();
+    final lower = _normalize(text);
     for (final phrase in prohibitedPhrasesEn) {
       if (lower.contains(phrase)) return true;
     }
     for (final phrase in prohibitedPhrasesSw) {
       if (lower.contains(phrase)) return true;
     }
-    // Proximity patterns like "X meters away" / "X metres away"
-    if (RegExp(r'\b\d+(\.\d+)?\s*(meters?|metres?|feet)\s*away\b', caseSensitive: false).hasMatch(lower)) {
-      return true;
-    }
-    return false;
+    return _movement.hasMatch(lower) || _distance.hasMatch(lower);
   }
 
   /// Validates a SceneResult before display and speech.
@@ -91,7 +131,10 @@ class OutputPolicy {
 
   /// Replaces only the fields that contain prohibited guidance.
   /// A violation in one field does not discard text in another.
-  static SceneResult applyFieldReplacements(SceneResult result, String language) {
+  static SceneResult applyFieldReplacements(
+    SceneResult result,
+    String language,
+  ) {
     final isSwahili = language == 'sw';
     final limitationSummary = isSwahili
         ? 'Picha inaonekana. EyeSense haiwezi kuthibitisha njia salama au kutoa maelekezo ya kuvuka. Tafadhali tumia msaada wako wa kawaida wa uhamaji.'
@@ -105,23 +148,37 @@ class OutputPolicy {
     final unspecified = isSwahili ? 'haijabainishwa' : 'unspecified';
 
     final summaryViolates = containsProhibitedSafetyGuidance(result.summary);
-    final answerViolates = result.answer != null && containsProhibitedSafetyGuidance(result.answer!);
+    final answerViolates =
+        result.answer != null &&
+        containsProhibitedSafetyGuidance(result.answer!);
     final concernViolates =
-        result.concernDescription != null && containsProhibitedSafetyGuidance(result.concernDescription!);
-    final uncertaintyViolates = result.uncertainty != null && containsProhibitedSafetyGuidance(result.uncertainty!);
+        result.concernDescription != null &&
+        containsProhibitedSafetyGuidance(result.concernDescription!);
+    final uncertaintyViolates =
+        result.uncertainty != null &&
+        containsProhibitedSafetyGuidance(result.uncertainty!);
     final objects = result.objects
-        .map((object) => containsProhibitedSafetyGuidance(object) ? unspecified : object)
+        .map(
+          (object) =>
+              containsProhibitedSafetyGuidance(object) ? unspecified : object,
+        )
         .toList();
     final objectsChanged = !_sameStrings(objects, result.objects);
 
-    if (!summaryViolates && !answerViolates && !concernViolates && !uncertaintyViolates && !objectsChanged) {
+    if (!summaryViolates &&
+        !answerViolates &&
+        !concernViolates &&
+        !uncertaintyViolates &&
+        !objectsChanged) {
       return result;
     }
 
     return result.copyWith(
       summary: summaryViolates ? limitationSummary : result.summary,
       answer: answerViolates ? limitationAnswer : result.answer,
-      concernDescription: concernViolates ? limitationNote : result.concernDescription,
+      concernDescription: concernViolates
+          ? limitationNote
+          : result.concernDescription,
       uncertainty: uncertaintyViolates ? limitationNote : result.uncertainty,
       objects: objects,
       possibleConcern: result.possibleConcern || concernViolates,
