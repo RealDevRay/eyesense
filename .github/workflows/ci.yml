@@ -41,6 +41,28 @@ jobs:
       - name: Assemble debug APK
         run: flutter build apk --debug --no-pub
 
+  site-checks:
+    name: Site Build & Route Checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build and verify site
+        run: npm run check
+
   worker-checks:
     name: Worker Typecheck & Test
     runs-on: ubuntu-latest

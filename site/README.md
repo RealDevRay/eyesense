@@ -1,90 +1,68 @@
-# EyeSense public site
+# EyeSense public site — Vercel
 
-Serves the legal pages that Google Play requires and that the app links to, at
-<https://eyesense.dpdns.org>.
+Static, accessible pilot information and legal pages for the intended domain <https://eyesense.dpdns.org>. No client JavaScript, API keys, camera access, sign-up form, analytics or AI calls. Vercel hosts this website; the Android app's AI requests continue to use the separate Cloudflare Worker or an explicitly selected direct provider.
 
-| Route | Content |
+## Pages
+
+| Route | Source |
 | --- | --- |
-| `/` | Landing page, from `index.md` |
-| `/privacy` | Privacy Policy, from `app/assets/legal/privacy-policy.md` |
-| `/terms` | Terms of Use, from `app/assets/legal/terms-of-service.md` |
-| `/sw` | Kiswahili landing page, from `index.sw.md` |
-| `/sw/privacy` | Sera ya Faragha, from `app/assets/legal/privacy-policy.sw.md` |
-| `/sw/terms` | Masharti ya Matumizi, from `app/assets/legal/terms-of-service.sw.md` |
+| `/` | `site/index.md` |
+| `/privacy` | `app/assets/legal/privacy-policy.md` |
+| `/terms` | `app/assets/legal/terms-of-service.md` |
+| `/sw` | `site/index.sw.md` |
+| `/sw/privacy` | `app/assets/legal/privacy-policy.sw.md` |
+| `/sw/terms` | `app/assets/legal/terms-of-service.sw.md` |
 
-The app offers Kiswahili, so publishing the legal text in English only would
-have excluded part of the intended audience. `LegalDocumentScreen` picks the
-`.sw.md` asset when the language preference is `sw` and falls back to English
-with a visible notice, so a missing translation can never leave someone with an
-error screen instead of the terms. Each page declares `hreflang` and carries a
-language switcher in its header.
+The legal documents are the same assets the Android app renders in Settings → Legal. Fonts are copied from `app/assets/fonts` and served locally, not from a third-party CDN. Pages include language alternates, a language switcher, a focusable skip target and native accessible tables. Respect browser text size and preferred colour scheme; all translations still need fluent/legal review.
 
-## Why it is built this way
+## Local build and verification
 
-The two legal documents are **not** duplicated here. `build.mjs` reads the same
-markdown files that `pubspec.yaml` bundles as app assets and that
-`LegalDocumentScreen` renders in Settings → Legal. Edit the markdown once and
-both the app and this site change together, which is the only way to keep a
-published policy and an in-app policy from drifting apart.
+From `site/`, with Node.js 22 or a compatible newer version:
 
-The output is static HTML with no JavaScript, and the Atkinson Hyperlegible
-fonts are copied from `app/assets/fonts` and self-hosted. A privacy policy page
-that itself calls out to a third-party font CDN is a bad look, so it doesn't.
-The `Content-Security-Policy` in `vercel.json` enforces that: `default-src
-'none'` with only same-origin images, styles and fonts allowed.
-
-## Local build
-
-```bash
-cd site
-npm install
-npm run build
-node preview.mjs    # http://localhost:4321
+```sh
+npm ci
+npm run check
 ```
 
-`preview.mjs` is a local-only static server that mirrors the `cleanUrls`
-behaviour, so `/privacy` and `/terms` resolve during preview exactly as they
-will in production. Vercel serves `dist/` itself and never runs it.
+`check` builds `dist/` and runs dependency-free Node tests for all six pages, internal links/assets, privacy/terms versions, language markup, table semantics, preview routing, redirects and security settings. These automated checks are not a real screen-reader audit.
 
-`npm run build` writes `dist/index.html`, `dist/privacy.html`,
-`dist/terms.html`, `dist/styles.css`, `dist/mark.svg` and `dist/fonts/`.
+For manual preview, run `node preview.mjs` and visit `http://127.0.0.1:4321`. It binds to loopback only. Stop it with Ctrl+C when done. The preview resolves `/sw` to `sw/index.html`, supports clean URLs and mirrors the configured redirects and common security headers; it is not a substitute for checking actual Vercel behavior.
 
-## Deploying to Vercel
+`dist/` is generated and ignored by Git. Do not copy APKs, `.dev.vars`, `.env` or credentials into it.
 
-Push the repository to GitHub, then import it in Vercel and set:
+## Deploy through Vercel's Git integration
 
-| Setting | Value |
-| --- | --- |
-| Framework Preset | Other |
-| Root Directory | `site` |
-| Build Command | `npm run build` |
-| Output Directory | `dist` |
-| Install Command | `npm install` |
+1. Make the intended source changes available in `RealDevRay/eyesense` on GitHub using your normal review/commit/push process. Local edits are not automatically uploaded. No commit or push is performed by these instructions.
+2. Import that repository into the intended Vercel account/team. Do not create a second production project if one already hosts the domain.
+3. Configure the project:
 
-Root Directory must be `site`, but the build still reaches up into
-`app/assets/legal` and `app/assets/fonts` for its sources. Leave
-"Include files outside the root directory" enabled — it is on by default, and
-the build fails without it.
+   | Setting | Value |
+   | --- | --- |
+   | Framework Preset | Other |
+   | Root Directory | `site` |
+   | Node.js version | 22.x |
+   | Install Command | `npm ci` |
+   | Build Command | `npm run check` |
+   | Output Directory | `dist` |
 
-`cleanUrls` is on, so `/privacy` serves `privacy.html` without the extension.
+   Build/install/output settings are also explicit in `site/vercel.json`.
+4. In Root Directory settings, **enable “Include source files outside of the Root Directory in the Build Step”**. The build deliberately reads `../app/assets/legal` and `../app/assets/fonts`. Do not assume this is enabled by default. See [Vercel monorepo FAQ](https://vercel.com/docs/monorepos/monorepo-faq#can-i-share-source-files-between-projects-are-shared-packages-supported).
+5. Deploy a preview, check all six routes, language switching, keyboard navigation, 200% text and a narrow mobile viewport. Confirm headers/redirects in the actual deployment, not only locally.
+6. Deliberately promote the reviewed version to production. Under Settings → Domains, add `eyesense.dpdns.org` and apply **the exact DNS record Vercel provides**. Do not guess a DNS target. Confirm HTTPS and all six routes on the custom domain.
 
-### Domain
+**No environment variables or provider keys are required for this site.** Do not add `GROQ_API_KEY`, `MISTRAL_API_KEY`, a hosted token or a Supabase service-role/secret key to this static project's build variables. Static build output is public; adding a key here does not securely connect the Android app to AI.
 
-Add `eyesense.dpdns.org` under Project → Settings → Domains and create the DNS
-record Vercel shows you. Once it resolves, confirm these three URLs load:
+Local verification completed with Node.js 26.10.0: `npm ci` succeeded (0 reported vulnerabilities), `npm run check` built six pages and passed all **13 tests**. The Node.js 22 Vercel build still needs verification on the selected project.
 
-- <https://eyesense.dpdns.org/>
-- <https://eyesense.dpdns.org/privacy>
-- <https://eyesense.dpdns.org/terms>
+A public Vercel URL is obtained only after deploying to an authenticated, selected project. Local build success does not mean a deployment occurred. The Vercel CLI/project link was not available during local setup; no production domain or DNS changes were made.
 
-The privacy URL is the one to paste into the Play Console listing.
+## After deployment
 
-## Before submitting to Play
+- Check `/`, `/privacy`, `/terms`, `/sw`, `/sw/privacy` and `/sw/terms` return the intended language, not a fallback 404.
+- Check `/privacy-policy` and `/terms-of-service` redirect correctly.
+- Confirm the CSP, Permissions-Policy and content-type headers; verify there are no third-party requests or secrets in output.
+- Confirm the legal pages show `1.1-pilot`, including Mistral/sensor/reconsent disclosures.
+- Complete the outstanding review in `docs/legal/OUTSTANDING.md`. `/privacy/history` and `/sw/privacy/history` still redirect to the current policy; publish archived notices before claiming history is available.
+- Keep pilot access wording truthful: no public APK or independent-user launch is offered, and live Groq vision/TalkBack checks remain gates.
 
-`/privacy/history` currently redirects to `/privacy`, because there is only one
-version. Section 12 of the policy promises prior versions will be kept there, so
-when the policy is first revised, publish the superseded version at that path
-and turn the redirect off.
-
-Outstanding legal items are tracked in `docs/legal/OUTSTANDING.md`. Resolve
-those before treating these pages as final.
+See [hosting and secrets](../docs/hosting-and-secrets.md) for the recommended Vercel/Cloudflare architecture and where Supabase could fit later.

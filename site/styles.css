@@ -1,4 +1,4 @@
-/* EyeSense public legal pages.
+/* EyeSense public pilot and legal pages.
    Palette and radii mirror app/lib/core/theme/app_theme.dart so the site and
    the app read as one product. No JavaScript, no third-party requests. */
 
@@ -53,6 +53,7 @@
 html {
   /* Respect the reader's browser font size rather than overriding it. */
   background: var(--bg);
+  overflow-wrap: anywhere;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -116,7 +117,8 @@ header {
 
 nav {
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
 }
 
 nav a {

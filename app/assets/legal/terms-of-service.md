@@ -1,10 +1,12 @@
 # EyeSense Terms of Use
 
-**Effective date:** 18 October 2026
+**Effective date:** 21 October 2026
 
-**Last updated:** 18 October 2026
+**Last updated:** 21 October 2026
 
-**Version:** 1.0
+**Version:** 1.1-pilot
+
+**Pilot draft:** Not a legal-compliance, physical TalkBack or production-readiness certification. Kiswahili translations need native-speaker and qualified legal review.
 
 ## 1. Agreement
 
@@ -29,7 +31,7 @@ EyeSense is a supplementary source of visual information. It is **not** a replac
 - detecting hazards, drop-offs, steps, traffic or moving objects;
 - any decision where being wrong could cause injury.
 
-The app is designed to refuse these requests, and will tell you it cannot help with them. That refusal is deliberate. Please do not attempt to work around it.
+The app is designed to refuse these requests, but prompts and filters do not guarantee every unsafe answer is blocked. That refusal is deliberate. Please do not attempt to work around it.
 
 ### 2.2 EyeSense is not a medical device
 
@@ -41,13 +43,19 @@ Each result is based on one still image taken at one moment. It is not live awar
 
 **Treat every result as a suggestion to verify, not a fact to act on.**
 
-### 2.4 Your responsibility
+### 2.4 Optional local sensor checks
+
+Android accelerometer, gravity, gyroscope, light and **FRONT** proximity availability metadata and brief samples stay local and ephemeral, without sensor history or network uploads. Capability discovery does not sample. Checks run for **less than one second** only during an explicit capture with guidance or **Check Sensors**, with cancellation and foreground/lifecycle cleanup. They use no GPS, compass or location sensing.
+
+Accelerometer/gravity estimate only approximate phone pose, not page alignment. Gyroscope is a movement/hold-steady cue only. Light is an ambient-light cue; front proximity indicates a possibly covered front sensor, not distance to a rear-camera subject. None measures subject distance, confirms page framing, judges roads/paths or supplies navigation. Missing sensors or no warning do not establish safety or picture quality. Physical-device behavior remains to be verified.
+
+### 2.5 Your responsibility
 
 You remain responsible for your own safety and for your decisions. Use the app in combination with your usual mobility aids, techniques and judgement — never in place of them.
 
 ## 3. Prototype status
 
-EyeSense is currently a prototype provided for evaluation. It may be unavailable, may behave unpredictably, may lose your settings, and may be withdrawn or changed substantially at any time without notice. Daily usage limits apply to the hosted service and may be reached, after which cloud features will stop working until the limit resets. Read Text will continue to work offline regardless.
+EyeSense is currently a prototype provided for evaluation. It may be unavailable, may behave unpredictably, may lose your settings, and may be withdrawn or changed substantially at any time without notice. Hosted pilot defaults are **6 requests per minute globally, 2 concurrent reservations and 100 requests per UTC day globally**, configurable by the operator and shared across users, not individual entitlements. Provider account limits also apply; these controls guarantee neither successful inference nor availability. Raw-IP one-minute windows and 60-second concurrency reservations expire logically and are pruned on the next pre-parse/charge/release operation; successful release removes its reservation. The global daily total resets lazily on a new UTC date, with minute windows spanning midnight. No scheduled deletion alarm or guaranteed idle/midnight deletion is provided; see the Privacy Policy §3.7. Read Text OCR does not use the cloud-AI service. System speech recognition and TTS may need internet; offline playback requires an installed offline voice.
 
 ## 4. What you may and may not do
 
@@ -69,22 +77,32 @@ We may suspend or withdraw access to the hosted service if we reasonably believe
 
 The app can operate in two modes.
 
-**Hosted mode** routes requests through our service to an AI provider we have selected. Availability and usage limits are set by us and may change.
+**Hosted mode** routes requests through our Cloudflare Worker to **Groq only**. Groq is the inference host; the configured default model is Qwen `qwen/qwen3.8-27b`, not a "Groq model". The operator can change the hosted model. Availability and usage limits are set by us and may change.
 
-**Bring Your Own Key mode** sends requests directly from your device to Groq using your own API key and account. In this mode:
+**Bring Your Own Key (BYOK) mode** sends requests directly from your device to your explicitly selected provider: **Groq, OpenAI, Google Gemini, or optional Mistral**, using that provider's own API key and account. Default model IDs are `qwen/qwen3.8-27b`, `gpt-5-mini`, `gemini-3.8-flash`, and `mistral-small-latest`, respectively. Model IDs are editable; defaults do not guarantee access, vision support, JSON support, or availability. Gemini uses Google's official OpenAI-compatibility endpoint, not OpenAI's service.
 
-- your use is governed by your own agreement with Groq, in addition to these terms;
+Mistral is used only when explicitly selected, with your own Mistral key and the fixed official `https://api.mistral.ai/v1` API (`POST /chat/completions`, `GET /models`); the `-latest` alias can change. Another provider's key or hosted token is never reused.
+
+**Mistral Free mode:** inputs/outputs may train models unless you opt out in your Mistral account (Admin → Privacy → Anonymous improvement data). EyeSense does not change this setting. Opt-out is not zero retention: **Free mode has no zero-data-retention option**, and approved paid arrangements are separate. Do not assume provider-side deletion. The account's current limits and terms are authoritative; a free key does not guarantee model access, remaining quota, support or production suitability. No live Mistral test was performed.
+
+Keys are stored separately per provider in encrypted local storage. Saving connection settings is explicit. There is **no provider/model fallback or silent image routing** when a request fails. In BYOK mode:
+
+- your use is governed by your own agreement with the **selected provider**, in addition to these terms;
 - **you are responsible for all charges and quota consumption on your account**;
 - you are responsible for keeping your key secure, and for revoking it if it is exposed;
 - we have no visibility of, and no responsibility for, your account, its limits or its billing.
 
-In both modes, once a request has reached an AI provider it is subject to that provider's terms and **cannot be recalled by us**. Stopping an operation in the app cancels our request; it does not necessarily halt processing a provider has already begun, or prevent an associated charge.
+**Optional checks:** Check key and model makes an authenticated `GET /models` request to the selected provider without a photo or inference. It does not prove vision or JSON support. The separate generated sample image test requires cloud-AI consent and explicit confirmation. It sends one generated 64 × 64 red image using the entered provider/key/model, with no camera or personal photograph, one potentially billable inference call, and no retry. Neither check automatically saves connection settings.
+
+Official references: [Groq privacy policy](https://groq.com/privacy-policy), [OpenAI privacy policy](https://openai.com/policies/privacy-policy/), [Gemini API terms](https://ai.google.dev/gemini-api/terms), and [Mistral terms/privacy](https://legal.mistral.ai/terms). These links do not certify review or compliance. Review of current provider/API terms, billing, retention, training use, and transfer conditions is required; no legal approval or account-specific provider guarantee is claimed.
+
+In both modes, once a request has reached the selected AI provider it is subject to that provider's terms and **cannot be recalled by us**. Stopping an operation in the app cancels our request; it does not necessarily halt processing a provider has already begun, or prevent an associated charge.
 
 ## 6. Availability
 
 We do not promise that the app or the hosted service will be available, uninterrupted or error-free. We may modify, suspend or discontinue any part of the service, including specific features or the hosted endpoint entirely, at any time.
 
-Read Text is designed to work without a network connection. It is the feature least dependent on us.
+Read Text's on-device OCR works without uploading the image for recognition. This is not a promise that the whole speech workflow is offline: system speech recognition and TTS may need internet, and offline playback requires an installed offline voice.
 
 ## 7. Intellectual property
 
@@ -119,7 +137,9 @@ You agree to indemnify us against claims, losses and reasonable costs arising fr
 
 We may update these terms. We will revise the effective date and, where the change materially affects your rights or the safety limitations in §2, notify you in the app and ask you to accept the revised terms before continuing to use affected features.
 
-Your continued use after a non-material change constitutes acceptance.
+For **1.1-pilot**, a saved cloud opt-in with an older or missing accepted terms version is treated as off. Review the revised Terms and Privacy Policy, then explicitly enable Cloud Processing Consent in Settings to reconsent. Reading or accepting terms alone does not restore cloud access. Previously completed onboarding remains complete; the tutorial is not forced again. An older safety acknowledgement no longer counts for this version. **Local Read Text OCR remains available without cloud consent.** An accessible in-app version-review notification remains a release verification task, not a claim made by this document.
+
+Your continued use after a non-material change constitutes acceptance; it never substitutes for the explicit cloud opt-in described above.
 
 ## 12. Ending this agreement
 

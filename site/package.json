@@ -2,9 +2,11 @@
   "name": "eyesense-site",
   "private": true,
   "type": "module",
-  "description": "Public legal pages for EyeSense, rendered from the markdown the app itself bundles.",
+  "description": "Accessible EyeSense pilot website and shared legal documents, built for Vercel.",
   "scripts": {
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "npm run build && npm test"
   },
   "dependencies": {
     "marked": "^14.1.3"
